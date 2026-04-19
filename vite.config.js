@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/workout-tracker/',
+  base: '/Workout-tracker/',
   build: {
     rollupOptions: {
       output: {

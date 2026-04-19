@@ -38,7 +38,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/workout-tracker">
+    <BrowserRouter basename="/Workout-tracker">
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
