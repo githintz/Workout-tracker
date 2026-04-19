@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface2: #1e1e1e;
+    --surface3: #2a2a2a;
+    --border: #2e2e2e;
+    --text: #f0f0f0;
+    --text-muted: #777;
+    --accent: #e8ff47;
+    --accent-dim: #c8df30;
+    --accent-subtle: rgba(232,255,71,0.1);
+    --red: #ff4f4f;
+    --green: #4fdf7c;
+    --blue: #4fa8ff;
+    --orange: #ff8c42;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    min-height: 100dvh;
+    overscroll-behavior: none;
+    margin: 0;
+  }
+
+  #root {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+/* Number input: hide spinners */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+input[type=number] { -moz-appearance: textfield; }
