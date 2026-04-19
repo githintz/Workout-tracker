@@ -15,7 +15,7 @@ import {
   subMonths, addMonths, isSameDay, getDay,
 } from 'date-fns'
 
-const TABS = ['Overview', 'Calendar', 'Exercises', 'Cardio']
+const TABS = ['Overview', 'Calendar', 'Exercises', 'Cardio', 'History']
 
 const ACCENT = '#e8ff47'
 const MUTED  = '#444'
@@ -373,6 +373,79 @@ function CardioTab({ cardioSessions }) {
   )
 }
 
+// ─── History Tab ──────────────────────────────────────────────────────────────
+function HistoryTab({ sessions, onDelete }) {
+  function formatDur(secs) {
+    if (!secs) return null
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    return m > 0 ? `${m}m ${s}s` : `${s}s`
+  }
+
+  if (sessions.length === 0) {
+    return <EmptyState icon="📋" title="No workout logs yet" subtitle="Finish a workout to see it here" />
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {sessions.map(s => (
+        <Card key={s.id}>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#1e1e1e] flex items-center justify-center text-xl shrink-0">💪</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-white font-semibold truncate">{s.day_title || 'Workout'}</p>
+                  <p className="text-[#555] text-xs">{s.plan_name || ''}</p>
+                </div>
+                <button
+                  onClick={() => onDelete(s.id)}
+                  className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#555] hover:bg-[#ff4f4f]/10 hover:text-[#ff4f4f] transition-colors text-lg leading-none"
+                >×</button>
+              </div>
+
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                <div>
+                  <p className="text-[#555] text-xs">Date</p>
+                  <p className="text-white text-sm font-medium">
+                    {format(parseISO(s.started_at), 'EEE, MMM d yyyy')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[#555] text-xs">Start</p>
+                  <p className="text-white text-sm font-medium">
+                    {format(parseISO(s.started_at), 'h:mm a')}
+                  </p>
+                </div>
+                {s.ended_at && (
+                  <div>
+                    <p className="text-[#555] text-xs">End</p>
+                    <p className="text-white text-sm font-medium">
+                      {format(parseISO(s.ended_at), 'h:mm a')}
+                    </p>
+                  </div>
+                )}
+                {s.duration_seconds && (
+                  <div>
+                    <p className="text-[#555] text-xs">Duration</p>
+                    <p className="text-[#e8ff47] text-sm font-semibold">{formatDur(s.duration_seconds)}</p>
+                  </div>
+                )}
+              </div>
+
+              {s.muscle_groups?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {s.muscle_groups.map(g => <MuscleChip key={g} group={g} />)}
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
 // ─── Main Analytics Page ───────────────────────────────────────────────────────
 export default function AnalyticsPage() {
   const { user }     = useAuth()
@@ -399,6 +472,12 @@ export default function AnalyticsPage() {
       setLoading(false)
     })
   }, [user])
+
+  const deleteSession = async (id) => {
+    if (!confirm('Delete this workout log? This cannot be undone.')) return
+    await supabase.from('workout_sessions').delete().eq('id', id)
+    setSessions(prev => prev.filter(s => s.id !== id))
+  }
 
   if (loading) return <PageLoader />
 
@@ -446,6 +525,7 @@ export default function AnalyticsPage() {
         )}
         {tab === 2 && <ExercisesTab allSets={allSets} />}
         {tab === 3 && <CardioTab cardioSessions={cardio} />}
+        {tab === 4 && <HistoryTab sessions={sessions} onDelete={deleteSession} />}
       </div>
     </div>
   )
