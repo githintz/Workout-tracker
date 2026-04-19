@@ -18,8 +18,10 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const signInWithEmail = (email) =>
-    supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+  const signInWithEmail = (email) => {
+    const redirectTo = window.location.origin + import.meta.env.BASE_URL
+    return supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } })
+  }
 
   const signOut = () => supabase.auth.signOut()
 
