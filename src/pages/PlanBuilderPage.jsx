@@ -11,8 +11,9 @@ import { MUSCLE_GROUPS, searchExercises } from '../lib/exercises'
 
 // ─── Exercise Search ───────────────────────────────────────────────────────────
 function ExerciseSearch({ onSelect, placeholder = 'Search exercises…' }) {
-  const [query, setQuery]     = useState('')
+  const [query, setQuery]   = useState('')
   const [results, setResults] = useState([])
+  const [open, setOpen]     = useState(false)
   const ref = useRef()
 
   const handleChange = (e) => {
@@ -25,6 +26,7 @@ function ExerciseSearch({ onSelect, placeholder = 'Search exercises…' }) {
     onSelect(ex)
     setQuery('')
     setResults([])
+    setOpen(false)
   }
 
   return (
@@ -33,11 +35,13 @@ function ExerciseSearch({ onSelect, placeholder = 'Search exercises…' }) {
         ref={ref}
         value={query}
         onChange={handleChange}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
           placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 transition-colors w-full"
       />
-      {query.length > 0 && (
+      {open && query.length > 0 && (
         <div className="absolute top-14 left-0 right-0 z-20 bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl overflow-hidden shadow-2xl">
           {results.map(ex => (
             <button
