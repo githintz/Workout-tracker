@@ -46,6 +46,40 @@ function ExerciseSearch({ onSelect }) {
   )
 }
 
+function SupersetAdder({ onAdd }) {
+  const [open, setOpen]   = useState(false)
+  const [nameA, setNameA] = useState('')
+  const [nameB, setNameB] = useState('')
+
+  const commit = () => {
+    if (!nameA || !nameB) return
+    onAdd(nameA, nameB)
+    setNameA(''); setNameB(''); setOpen(false)
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="mt-1 text-[#e8ff47] text-sm font-medium flex items-center gap-1">
+        + Add Superset
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-2 bg-[#1a1a1a] border border-[#e8ff47]/20 rounded-2xl p-4 flex flex-col gap-3">
+      <p className="text-[#e8ff47] text-xs font-bold uppercase">Superset</p>
+      <ExerciseSearch onSelect={ex => setNameA(ex.name)} placeholder="Exercise A…" />
+      {nameA && <p className="text-white text-sm">A: {nameA}</p>}
+      <ExerciseSearch onSelect={ex => setNameB(ex.name)} placeholder="Exercise B…" />
+      {nameB && <p className="text-white text-sm">B: {nameB}</p>}
+      <div className="flex gap-2">
+        <Button size="sm" variant="accent" onClick={commit} disabled={!nameA || !nameB}>Add Superset</Button>
+        <Button size="sm" variant="ghost" onClick={() => { setOpen(false); setNameA(''); setNameB('') }}>Cancel</Button>
+      </div>
+    </div>
+  )
+}
+
 export default function PlanEditPage() {
   const { id }     = useParams()
   const { user }   = useAuth()
@@ -83,6 +117,15 @@ export default function PlanEditPage() {
   const addExercise = (i, ex) => {
     const exObj = { id: crypto.randomUUID(), name: ex.name, muscle: ex.muscle, is_superset: false, superset_group: null }
     updateDayField(i, 'exercises', [...days[i].exercises, exObj])
+  }
+
+  const addSuperset = (i, nameA, nameB) => {
+    const gid = crypto.randomUUID()
+    updateDayField(i, 'exercises', [
+      ...days[i].exercises,
+      { id: crypto.randomUUID(), name: nameA, muscle: '', is_superset: true, superset_group: gid },
+      { id: crypto.randomUUID(), name: nameB, muscle: '', is_superset: true, superset_group: gid },
+    ])
   }
 
   const removeExercise = (i, exId) => {
@@ -162,6 +205,7 @@ export default function PlanEditPage() {
               ))}
             </div>
             <ExerciseSearch onSelect={ex => addExercise(activeDay, ex)} />
+            <SupersetAdder onAdd={(a, b) => addSuperset(activeDay, a, b)} />
           </div>
         </div>
       )}
