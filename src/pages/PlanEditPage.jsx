@@ -20,7 +20,7 @@ function ExerciseSearch({ onSelect }) {
         className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
           placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 w-full"
       />
-      {results.length > 0 && (
+      {query.length > 0 && (
         <div className="absolute top-14 left-0 right-0 z-20 bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl overflow-hidden shadow-2xl">
           {results.map(ex => (
             <button key={ex.name} onMouseDown={() => { onSelect(ex); setQuery(''); setResults([]) }}
@@ -31,6 +31,7 @@ function ExerciseSearch({ onSelect }) {
           ))}
           <button onMouseDown={() => { onSelect({ name: query, muscle: '' }); setQuery(''); setResults([]) }}
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#2a2a2a] text-left border-t border-[#2e2e2e]">
+            <div className="w-9 h-9 rounded-xl bg-[#2e2e2e] flex items-center justify-center text-sm shrink-0">✏️</div>
             <span className="text-[#e8ff47] text-sm">Add "{query}" as custom</span>
           </button>
         </div>
