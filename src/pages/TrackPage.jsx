@@ -9,26 +9,29 @@ import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { format } from 'date-fns'
 
-// ─── Rest Timer ────────────────────────────────────────────────────────────────
-function RestTimer({ duration, onDone }) {
-  const [remaining, setRemaining] = useState(duration)
-  const [running, setRunning]     = useState(true)
-  const ref = useRef()
+// ─── beep via Web Audio ────────────────────────────────────────────────────────
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    ;[0, 0.25, 0.5].forEach(delay => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.5, ctx.currentTime + delay)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3)
+      osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.3)
+    })
+  } catch (_) {}
+}
 
-  useEffect(() => {
-    if (!running) return
-    if (remaining <= 0) { onDone(); return }
-    ref.current = setTimeout(() => setRemaining(r => r - 1), 1000)
-    return () => clearTimeout(ref.current)
-  }, [remaining, running])
-
-  const pct = ((duration - remaining) / duration) * 100
+// ─── Rest Timer ring (display only — state lives in TrackPage) ─────────────────
+function RestTimerRing({ remaining, total, running, onAddTime, onToggle, onSkip }) {
+  const pct  = total > 0 ? ((total - remaining) / total) * 100 : 100
   const mins = Math.floor(remaining / 60)
   const secs = remaining % 60
-
   return (
     <div className="flex flex-col items-center gap-4 py-4">
-      {/* Ring */}
       <div className="relative w-36 h-36">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
           <circle cx="60" cy="60" r="52" fill="none" stroke="#1e1e1e" strokeWidth="8" />
@@ -39,16 +42,16 @@ function RestTimer({ duration, onDone }) {
             style={{ transition: 'stroke-dashoffset 0.9s linear' }}
           />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-white text-3xl font-bold tabular-nums">
             {mins}:{secs.toString().padStart(2, '0')}
           </span>
         </div>
       </div>
       <div className="flex gap-3">
-        <Button variant="secondary" size="sm" onClick={() => setRemaining(r => r + 15)}>+15s</Button>
-        <Button variant="secondary" size="sm" onClick={() => setRunning(r => !r)}>{running ? 'Pause' : 'Resume'}</Button>
-        <Button variant="danger" size="sm" onClick={onDone}>Skip</Button>
+        <Button variant="secondary" size="sm" onClick={onAddTime}>+15s</Button>
+        <Button variant="secondary" size="sm" onClick={onToggle}>{running ? 'Pause' : 'Resume'}</Button>
+        <Button variant="danger"    size="sm" onClick={onSkip}>Skip</Button>
       </div>
     </div>
   )
@@ -202,10 +205,15 @@ export default function TrackPage() {
   const [session, setSession]     = useState(null)  // db session row
   const [startTime, setStartTime] = useState(null)
   const [elapsed, setElapsed]     = useState(0)
+  const startTimeRef = useRef(null)
   const [sets, setSets]           = useState({})    // exerciseId/supersetGroup => sets[]
   const [activeExIdx, setActiveExIdx] = useState(0)
-  const [showTimer, setShowTimer] = useState(false)
-  const [timerKey, setTimerKey]   = useState(0)
+  const [showTimer, setShowTimer]     = useState(false)
+  const [restRemaining, setRestRemaining] = useState(0)
+  const [restTotal, setRestTotal]     = useState(0)
+  const [restRunning, setRestRunning] = useState(false)
+  const restEndRef = useRef(null)
+  const restIntervalRef = useRef(null)
 
   const [loading, setLoading]     = useState(true)
   const [finishing, setFinishing] = useState(false)
@@ -214,15 +222,82 @@ export default function TrackPage() {
 
   useEffect(() => { loadActivePlan() }, [user])
 
+  // Persist active workout to localStorage
+  useEffect(() => {
+    if (phase === 'active' && session) {
+      localStorage.setItem('lift_workout', JSON.stringify({
+        phase, sessionId: session.id, startTimeMs: startTimeRef.current,
+        selectedDay, exercises, sets, activeExIdx,
+      }))
+    } else if (phase === 'done' || phase === 'select') {
+      localStorage.removeItem('lift_workout')
+    }
+  }, [phase, sets, activeExIdx])
+
   useEffect(() => {
     if (phase !== 'active') return
-    elapsedRef.current = setInterval(() => setElapsed(e => e + 1), 1000)
-    return () => clearInterval(elapsedRef.current)
+    const tick = () => {
+      if (startTimeRef.current) setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000))
+    }
+    elapsedRef.current = setInterval(tick, 1000)
+    const onVisible = () => { if (document.visibilityState === 'visible') tick() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(elapsedRef.current); document.removeEventListener('visibilitychange', onVisible) }
   }, [phase])
+
+  useEffect(() => {
+    if (!restRunning) { clearInterval(restIntervalRef.current); return }
+    restIntervalRef.current = setInterval(() => {
+      const left = Math.max(0, Math.round((restEndRef.current - Date.now()) / 1000))
+      setRestRemaining(left)
+      if (left === 0) { clearInterval(restIntervalRef.current); setRestRunning(false); playBeep() }
+    }, 500)
+    return () => clearInterval(restIntervalRef.current)
+  }, [restRunning])
+
+  const startRestTimer = () => {
+    const dur = settings.rest_timer_seconds || 90
+    restEndRef.current = Date.now() + dur * 1000
+    setRestTotal(dur); setRestRemaining(dur); setRestRunning(true); setShowTimer(true)
+  }
+  const pauseResumeRest = () => {
+    if (restRunning) {
+      setRestRunning(false)
+    } else {
+      restEndRef.current = Date.now() + restRemaining * 1000
+      setRestRunning(true)
+    }
+  }
+  const addRestTime = () => {
+    restEndRef.current += 15000
+    setRestRemaining(r => r + 15)
+    setRestTotal(t => t + 15)
+  }
+  const skipRest = () => { setRestRunning(false); setRestRemaining(0); setShowTimer(false) }
 
   async function loadActivePlan() {
     if (!user) return
     setLoading(true)
+
+    // Restore interrupted workout from localStorage
+    const saved = localStorage.getItem('lift_workout')
+    if (saved) {
+      try {
+        const w = JSON.parse(saved)
+        startTimeRef.current = w.startTimeMs
+        setStartTime(new Date(w.startTimeMs))
+        setElapsed(Math.floor((Date.now() - w.startTimeMs) / 1000))
+        setSelectedDay(w.selectedDay)
+        setExercises(w.exercises)
+        setSets(w.sets)
+        setActiveExIdx(w.activeExIdx || 0)
+        setSession({ id: w.sessionId })
+        setPhase('active')
+        setLoading(false)
+        return
+      } catch (_) { localStorage.removeItem('lift_workout') }
+    }
+
     const { data: p } = await supabase.from('workout_plans').select('*').eq('user_id', user.id).eq('is_active', true).single()
     setPlan(p)
     if (p) {
@@ -241,6 +316,7 @@ export default function TrackPage() {
   const startWorkout = async () => {
     const now = new Date()
     setStartTime(now)
+    startTimeRef.current = now.getTime()
     setElapsed(0)
     // Create session in DB
     const { data: sess } = await supabase.from('workout_sessions').insert({
@@ -319,6 +395,7 @@ export default function TrackPage() {
       if (rows.length > 0) await supabase.from('session_sets').insert(rows)
     }
 
+    localStorage.removeItem('lift_workout')
     setFinishing(false)
     setPhase('done')
   }
@@ -425,10 +502,23 @@ export default function TrackPage() {
           ) : null}
         </div>
 
+        {/* Persistent rest timer mini-bar */}
+        {restRunning && !showTimer && (
+          <button
+            onClick={() => setShowTimer(true)}
+            className="mx-4 mb-2 bg-[#e8ff47]/10 border border-[#e8ff47]/30 rounded-2xl px-4 py-2 flex items-center justify-between"
+          >
+            <span className="text-[#e8ff47] text-sm font-semibold">⏱ Rest</span>
+            <span className="text-[#e8ff47] text-lg font-bold tabular-nums">
+              {Math.floor(restRemaining/60)}:{(restRemaining%60).toString().padStart(2,'0')}
+            </span>
+            <span className="text-[#e8ff47]/50 text-xs">tap to expand</span>
+          </button>
+        )}
+
         {/* Bottom bar */}
         <div className="px-4 py-4 border-t border-[#1e1e1e] bg-[#0a0a0a] flex gap-3 shrink-0">
-          <Button variant="secondary" size="md" className="flex-1"
-            onClick={() => { setTimerKey(k => k+1); setShowTimer(true) }}>
+          <Button variant="secondary" size="md" className="flex-1" onClick={startRestTimer}>
             ⏱ Rest Timer
           </Button>
           <div className="flex gap-2">
@@ -441,10 +531,9 @@ export default function TrackPage() {
 
         {/* Rest timer modal */}
         <Modal open={showTimer} onClose={() => setShowTimer(false)} title="Rest Timer">
-          <RestTimer
-            key={timerKey}
-            duration={settings.rest_timer_seconds || 90}
-            onDone={() => setShowTimer(false)}
+          <RestTimerRing
+            remaining={restRemaining} total={restTotal} running={restRunning}
+            onAddTime={addRestTime} onToggle={pauseResumeRest} onSkip={skipRest}
           />
         </Modal>
       </div>
