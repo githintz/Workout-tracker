@@ -99,6 +99,16 @@ create table if not exists user_settings (
   updated_at          timestamptz default now()
 );
 
+-- ─── FEEDBACK ─────────────────────────────────────────────────────────────────
+create table if not exists feedback (
+  id         uuid primary key default uuid_generate_v4(),
+  user_id    uuid references auth.users(id) on delete set null,
+  page       text not null,
+  message    text not null,
+  status     text default 'pending' check (status in ('pending', 'done', 'dismissed')),
+  created_at timestamptz default now()
+);
+
 -- ─── ROW LEVEL SECURITY ───────────────────────────────────────────────────────
 alter table workout_plans    enable row level security;
 alter table workout_days     enable row level security;
@@ -137,3 +147,6 @@ create policy "hiit_own" on hiit_sets for all using (
 );
 -- Settings: own row
 create policy "settings_own" on user_settings for all using (auth.uid() = user_id);
+-- Feedback: own rows
+alter table feedback enable row level security;
+create policy "feedback_own" on feedback for all using (auth.uid() = user_id);

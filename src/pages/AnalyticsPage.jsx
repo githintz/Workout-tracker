@@ -6,9 +6,11 @@ import { Card } from '../components/ui/Card'
 import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, Legend,
+  ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import {
   format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval,
@@ -373,8 +375,132 @@ function CardioTab({ cardioSessions }) {
   )
 }
 
+// ─── Edit Session Modal ────────────────────────────────────────────────────────
+function EditSessionModal({ session, open, onClose, onSaved }) {
+  const [sets, setSets]   = useState([])
+  const [date, setDate]   = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open || !session) return
+    setDate(format(parseISO(session.started_at), "yyyy-MM-dd'T'HH:mm"))
+    setNotes(session.notes || '')
+    supabase.from('session_sets').select('*')
+      .eq('session_id', session.id).order('exercise_name').order('set_number')
+      .then(({ data }) => setSets(data || []))
+  }, [open, session])
+
+  const updateSet = (i, field, val) =>
+    setSets(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: val } : s))
+
+  const removeSet = (i) => setSets(prev => prev.filter((_, idx) => idx !== i))
+
+  const addSet = (exerciseName) => {
+    const last = [...sets].reverse().find(s => s.exercise_name === exerciseName)
+    setSets(prev => [...prev, {
+      id: 'new-' + crypto.randomUUID(),
+      session_id: session.id,
+      exercise_name: exerciseName,
+      set_number: (last?.set_number || 0) + 1,
+      weight: last?.weight || null,
+      reps: last?.reps || null,
+    }])
+  }
+
+  const save = async () => {
+    setSaving(true)
+    const newDate = new Date(date)
+    await supabase.from('workout_sessions')
+      .update({ started_at: newDate.toISOString(), notes: notes.trim() || null })
+      .eq('id', session.id)
+
+    // Delete all old sets and reinsert
+    await supabase.from('session_sets').delete().eq('session_id', session.id)
+    const rows = sets.filter(s => s.reps || s.weight).map((s, i) => ({
+      session_id: session.id,
+      exercise_name: s.exercise_name,
+      set_number: s.set_number,
+      weight: parseFloat(s.weight) || null,
+      reps: parseInt(s.reps) || null,
+      superset_partner_name: s.superset_partner_name || null,
+      partner_weight: parseFloat(s.partner_weight) || null,
+      partner_reps: parseInt(s.partner_reps) || null,
+    }))
+    if (rows.length) await supabase.from('session_sets').insert(rows)
+
+    setSaving(false)
+    onSaved({ ...session, started_at: newDate.toISOString(), notes })
+    onClose()
+  }
+
+  // Group sets by exercise
+  const byExercise = sets.reduce((acc, s) => {
+    acc[s.exercise_name] = acc[s.exercise_name] || []
+    acc[s.exercise_name].push(s)
+    return acc
+  }, {})
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit Log">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[#777] text-sm font-medium">Date & Time</label>
+          <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
+            className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
+              focus:outline-none focus:border-[#e8ff47]/50 w-full" />
+        </div>
+
+        {Object.entries(byExercise).map(([name, exSets]) => (
+          <div key={name} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-white font-semibold text-sm">{name}</p>
+              <button onClick={() => addSet(name)}
+                className="text-[#e8ff47] text-xs font-medium">+ set</button>
+            </div>
+            <div className="flex items-center gap-2 px-1">
+              <span className="w-5 text-[#555] text-xs">#</span>
+              <span className="flex-1 text-center text-[#555] text-xs">Weight</span>
+              <span className="flex-1 text-center text-[#555] text-xs">Reps</span>
+              <span className="w-7" />
+            </div>
+            {exSets.map((s, i) => {
+              const gi = sets.indexOf(s)
+              return (
+                <div key={s.id} className="flex items-center gap-2">
+                  <span className="w-5 text-[#555] text-xs text-center">{i + 1}</span>
+                  <input type="number" inputMode="decimal" value={s.weight ?? ''} placeholder="0"
+                    onChange={e => updateSet(gi, 'weight', e.target.value)}
+                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-[#e8ff47]/50" />
+                  <input type="number" inputMode="numeric" value={s.reps ?? ''} placeholder="0"
+                    onChange={e => updateSet(gi, 'reps', e.target.value)}
+                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-[#e8ff47]/50" />
+                  <button onClick={() => removeSet(gi)}
+                    className="w-7 h-7 flex items-center justify-center text-[#444] hover:text-[#ff4f4f] text-lg">×</button>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[#777] text-sm font-medium">Notes</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+            placeholder="Any notes…"
+            className="px-4 py-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
+              placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 resize-none w-full" />
+        </div>
+
+        <Button size="lg" className="w-full" onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : 'Save Changes'}
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── History Tab ──────────────────────────────────────────────────────────────
-function HistoryTab({ sessions, onDelete }) {
+function HistoryTab({ sessions, onDelete, onEdit }) {
   function formatDur(secs) {
     if (!secs) return null
     const m = Math.floor(secs / 60)
@@ -398,10 +524,12 @@ function HistoryTab({ sessions, onDelete }) {
                   <p className="text-white font-semibold truncate">{s.day_title || 'Workout'}</p>
                   <p className="text-[#555] text-xs">{s.plan_name || ''}</p>
                 </div>
-                <button
-                  onClick={() => onDelete(s.id)}
-                  className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#555] hover:bg-[#ff4f4f]/10 hover:text-[#ff4f4f] transition-colors text-lg leading-none"
-                >×</button>
+                <div className="flex gap-1.5 shrink-0">
+                  <button onClick={() => onEdit(s)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#777] hover:bg-[#e8ff47]/10 hover:text-[#e8ff47] transition-colors text-sm">✏️</button>
+                  <button onClick={() => onDelete(s.id)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#555] hover:bg-[#ff4f4f]/10 hover:text-[#ff4f4f] transition-colors text-lg leading-none">×</button>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
@@ -456,6 +584,7 @@ export default function AnalyticsPage() {
   const [cardio,    setCardio]    = useState([])
   const [loading,   setLoading]   = useState(true)
   const [filterMuscle, setFilterMuscle] = useState(null)
+  const [editSession, setEditSession]   = useState(null)
 
   const MUSCLE_GROUPS = ['Chest','Back','Shoulders','Biceps','Triceps','Legs','Glutes','Core']
 
@@ -525,8 +654,14 @@ export default function AnalyticsPage() {
         )}
         {tab === 2 && <ExercisesTab allSets={allSets} />}
         {tab === 3 && <CardioTab cardioSessions={cardio} />}
-        {tab === 4 && <HistoryTab sessions={sessions} onDelete={deleteSession} />}
+        {tab === 4 && <HistoryTab sessions={sessions} onDelete={deleteSession} onEdit={setEditSession} />}
       </div>
+
+      <EditSessionModal
+        session={editSession} open={!!editSession}
+        onClose={() => setEditSession(null)}
+        onSaved={updated => setSessions(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s))}
+      />
     </div>
   )
 }
