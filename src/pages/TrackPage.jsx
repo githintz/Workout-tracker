@@ -58,37 +58,52 @@ function RestTimerRing({ remaining, total, running, onAddTime, onToggle, onSkip 
 }
 
 // ─── Set Entry Row ─────────────────────────────────────────────────────────────
-function SetRow({ setNum, weight, reps, onChange, onRemove, unit }) {
+function SetRow({ setNum, weight, reps, onChange, onRemove, onToggleLock, locked, unit }) {
+  if (locked) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-[#4fdf7c] w-6 text-center text-base shrink-0">✓</span>
+        <div className="flex-1 h-12 rounded-2xl bg-[#1a1a1a] flex items-center justify-center text-white text-lg font-semibold">
+          {weight || '—'}
+        </div>
+        <span className="text-[#555] text-xs w-5 text-center shrink-0">{unit}</span>
+        <div className="flex-1 h-12 rounded-2xl bg-[#1a1a1a] flex items-center justify-center text-white text-lg font-semibold">
+          {reps || '—'}
+        </div>
+        <span className="text-[#555] text-xs w-7 shrink-0">reps</span>
+        <button onClick={onToggleLock}
+          className="w-8 h-8 flex items-center justify-center text-[#555] hover:text-[#e8ff47] transition-colors shrink-0 text-sm">
+          ✏️
+        </button>
+      </div>
+    )
+  }
   return (
     <div className="flex items-center gap-2">
       <span className="text-[#555] text-sm w-6 text-center shrink-0">{setNum}</span>
       <input
-        type="number"
-        value={weight}
-        onChange={e => onChange('weight', e.target.value)}
-        placeholder="0"
-        inputMode="decimal"
-        className="flex-1 h-12 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-lg font-semibold
-          focus:outline-none focus:border-[#e8ff47]/50"
+        type="number" value={weight} onChange={e => onChange('weight', e.target.value)}
+        placeholder="0" inputMode="decimal"
+        className="flex-1 h-12 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-lg font-semibold focus:outline-none focus:border-[#e8ff47]/50"
       />
       <span className="text-[#555] text-xs w-5 text-center shrink-0">{unit}</span>
       <input
-        type="number"
-        value={reps}
-        onChange={e => onChange('reps', e.target.value)}
-        placeholder="0"
-        inputMode="numeric"
-        className="flex-1 h-12 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-lg font-semibold
-          focus:outline-none focus:border-[#e8ff47]/50"
+        type="number" value={reps} onChange={e => onChange('reps', e.target.value)}
+        placeholder="0" inputMode="numeric"
+        className="flex-1 h-12 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-lg font-semibold focus:outline-none focus:border-[#e8ff47]/50"
       />
-      <span className="text-[#555] text-xs w-7 shrink-0">reps</span>
-      <button onClick={onRemove} className="w-8 h-8 flex items-center justify-center text-[#444] hover:text-[#ff4f4f] text-xl shrink-0">×</button>
+      <button onClick={onToggleLock}
+        className="w-8 h-8 flex items-center justify-center rounded-full bg-[#4fdf7c]/10 text-[#4fdf7c] hover:bg-[#4fdf7c]/20 transition-colors shrink-0 text-base">
+        ✓
+      </button>
+      <button onClick={onRemove}
+        className="w-8 h-8 flex items-center justify-center text-[#444] hover:text-[#ff4f4f] text-xl shrink-0">×</button>
     </div>
   )
 }
 
 // ─── Superset Entry ────────────────────────────────────────────────────────────
-function SupersetEntry({ pair, sets, onSetsChange, unit }) {
+function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets }) {
   const [A, B] = pair
 
   const addSet = () => {
@@ -97,11 +112,13 @@ function SupersetEntry({ pair, sets, onSetsChange, unit }) {
       id: crypto.randomUUID(),
       weightA: last?.weightA || '', repsA: last?.repsA || '',
       weightB: last?.weightB || '', repsB: last?.repsB || '',
+      locked: false,
     }])
   }
 
-  const updateSet = (i, field, val) => onSetsChange(sets.map((s, si) => si === i ? { ...s, [field]: val } : s))
-  const removeSet = (i) => onSetsChange(sets.filter((_, si) => si !== i))
+  const updateSet  = (i, field, val) => onSetsChange(sets.map((s, si) => si === i ? { ...s, [field]: val } : s))
+  const removeSet  = (i) => onSetsChange(sets.filter((_, si) => si !== i))
+  const toggleLock = (i) => onSetsChange(sets.map((s, si) => si === i ? { ...s, locked: !s.locked } : s))
 
   return (
     <div className="flex flex-col gap-2">
@@ -120,13 +137,26 @@ function SupersetEntry({ pair, sets, onSetsChange, unit }) {
         <span className="text-[#e8ff47] text-xs font-bold bg-[#e8ff47]/10 px-2 h-5 rounded-full flex items-center">Superset</span>
       </div>
 
+      {/* Previous superset */}
+      {prevSets?.length > 0 && (
+        <div className="bg-[#1a1a1a] rounded-2xl px-3 py-2 flex flex-col gap-1">
+          <span className="text-[#555] text-xs font-medium">Previous:</span>
+          {prevSets.map((p, i) => (
+            <span key={i} className="text-[#777] text-xs">
+              Set {p.set_number}: <span className="text-[#aaa] font-medium">{p.weight}{unit} × {p.reps}</span>
+              {p.partner_weight != null && <span className="text-[#666]"> / {p.partner_weight}{unit} × {p.partner_reps}</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Column headers */}
       <div className="flex items-center gap-2 px-1">
         <span className="w-6" />
         <span className="flex-1 text-center text-[#555] text-xs">Weight</span>
         <span className="w-5" />
         <span className="flex-1 text-center text-[#555] text-xs">Reps</span>
-        <span className="w-8" />
+        <span className="w-8" /><span className="w-8" />
       </div>
 
       {/* A sets */}
@@ -134,8 +164,10 @@ function SupersetEntry({ pair, sets, onSetsChange, unit }) {
         <p className="text-[#e8ff47] text-xs font-bold px-1">A — {A.exercise_name}</p>
         {sets.map((s, i) => (
           <SetRow key={s.id} setNum={i + 1} weight={s.weightA} reps={s.repsA} unit={unit}
+            locked={s.locked}
             onChange={(f, v) => updateSet(i, f === 'weight' ? 'weightA' : 'repsA', v)}
-            onRemove={() => removeSet(i)} />
+            onRemove={() => removeSet(i)}
+            onToggleLock={() => toggleLock(i)} />
         ))}
       </div>
 
@@ -144,8 +176,10 @@ function SupersetEntry({ pair, sets, onSetsChange, unit }) {
         <p className="text-[#e8ff47] text-xs font-bold px-1">B — {B.exercise_name}</p>
         {sets.map((s, i) => (
           <SetRow key={s.id + 'b'} setNum={i + 1} weight={s.weightB} reps={s.repsB} unit={unit}
+            locked={s.locked}
             onChange={(f, v) => updateSet(i, f === 'weight' ? 'weightB' : 'repsB', v)}
-            onRemove={() => removeSet(i)} />
+            onRemove={() => removeSet(i)}
+            onToggleLock={() => toggleLock(i)} />
         ))}
       </div>
 
@@ -155,32 +189,46 @@ function SupersetEntry({ pair, sets, onSetsChange, unit }) {
 }
 
 // ─── Single Exercise Entry ─────────────────────────────────────────────────────
-function ExerciseEntry({ exercise, sets, onSetsChange, unit }) {
+function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets }) {
   const addSet = () => {
     const last = sets[sets.length - 1]
-    onSetsChange([...sets, { id: crypto.randomUUID(), weight: last?.weight || '', reps: last?.reps || '' }])
+    onSetsChange([...sets, { id: crypto.randomUUID(), weight: last?.weight || '', reps: last?.reps || '', locked: false }])
   }
-  const updateSet = (i, field, val) => onSetsChange(sets.map((s, si) => si === i ? { ...s, [field]: val } : s))
-  const removeSet = (i) => onSetsChange(sets.filter((_, si) => si !== i))
+  const updateSet    = (i, field, val) => onSetsChange(sets.map((s, si) => si === i ? { ...s, [field]: val } : s))
+  const removeSet    = (i) => onSetsChange(sets.filter((_, si) => si !== i))
+  const toggleLock   = (i) => onSetsChange(sets.map((s, si) => si === i ? { ...s, locked: !s.locked } : s))
 
   return (
     <div className="flex flex-col gap-2">
       <p className="text-white font-bold text-base">{exercise.exercise_name}</p>
       {exercise.muscle_group && <p className="text-[#555] text-xs -mt-1">{exercise.muscle_group}</p>}
 
-      {/* Column headers */}
-      <div className="flex items-center gap-2 px-1">
+      {/* Previous workout row */}
+      {prevSets?.length > 0 && (
+        <div className="bg-[#1a1a1a] rounded-2xl px-3 py-2 flex flex-wrap gap-x-3 gap-y-1">
+          <span className="text-[#555] text-xs font-medium w-full">Previous:</span>
+          {prevSets.map((p, i) => (
+            <span key={i} className="text-[#777] text-xs">
+              Set {p.set_number}: <span className="text-[#aaa] font-medium">{p.weight}{unit} × {p.reps}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 px-1 mt-1">
         <span className="w-6" />
         <span className="flex-1 text-center text-[#555] text-xs">Weight ({unit})</span>
         <span className="w-5" />
         <span className="flex-1 text-center text-[#555] text-xs">Reps</span>
-        <span className="w-7" />
-        <span className="w-8" />
+        <span className="w-8" /><span className="w-8" />
       </div>
 
       {sets.map((s, i) => (
         <SetRow key={s.id} setNum={i + 1} weight={s.weight} reps={s.reps} unit={unit}
-          onChange={(f, v) => updateSet(i, f, v)} onRemove={() => removeSet(i)} />
+          locked={s.locked}
+          onChange={(f, v) => updateSet(i, f, v)}
+          onRemove={() => removeSet(i)}
+          onToggleLock={() => toggleLock(i)} />
       ))}
 
       <Button variant="secondary" size="sm" onClick={addSet}>+ Add Set</Button>
@@ -207,6 +255,7 @@ export default function TrackPage() {
   const [elapsed, setElapsed]     = useState(0)
   const startTimeRef = useRef(null)
   const [sets, setSets]           = useState({})    // exerciseId/supersetGroup => sets[]
+  const [prevSetsMap, setPrevSetsMap] = useState({}) // exercise_name => session_sets[]
   const [activeExIdx, setActiveExIdx] = useState(0)
   const [showTimer, setShowTimer]     = useState(false)
   const [restRemaining, setRestRemaining] = useState(0)
@@ -311,6 +360,29 @@ export default function TrackPage() {
     setSelectedDay(day)
     const { data: ex } = await supabase.from('day_exercises').select('*').eq('day_id', day.id).order('order_index')
     setExercises(ex || [])
+
+    // Load previous session's sets for reference
+    const { data: prevSess } = await supabase
+      .from('workout_sessions')
+      .select('id')
+      .eq('day_id', day.id)
+      .eq('user_id', user.id)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .single()
+    if (prevSess) {
+      const { data: ps } = await supabase
+        .from('session_sets')
+        .select('*')
+        .eq('session_id', prevSess.id)
+        .order('set_number')
+      const map = {}
+      for (const row of ps || []) {
+        if (!map[row.exercise_name]) map[row.exercise_name] = []
+        map[row.exercise_name].push(row)
+      }
+      setPrevSetsMap(map)
+    }
   }
 
   const startWorkout = async () => {
@@ -491,6 +563,7 @@ export default function TrackPage() {
               sets={sets[item.key] || []}
               onSetsChange={s => setSets(prev => ({ ...prev, [item.key]: s }))}
               unit={unit}
+              prevSets={prevSetsMap[item.pair[0].exercise_name] || []}
             />
           ) : item?.type === 'exercise' ? (
             <ExerciseEntry
@@ -498,6 +571,7 @@ export default function TrackPage() {
               sets={sets[item.key] || []}
               onSetsChange={s => setSets(prev => ({ ...prev, [item.key]: s }))}
               unit={unit}
+              prevSets={prevSetsMap[item.ex.exercise_name] || []}
             />
           ) : null}
         </div>
