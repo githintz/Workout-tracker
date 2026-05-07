@@ -377,14 +377,16 @@ function CardioTab({ cardioSessions }) {
 
 // ─── Edit Session Modal ────────────────────────────────────────────────────────
 function EditSessionModal({ session, open, onClose, onSaved }) {
-  const [sets, setSets]   = useState([])
-  const [date, setDate]   = useState('')
-  const [notes, setNotes] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [sets, setSets]       = useState([])
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate]     = useState('')
+  const [notes, setNotes]     = useState('')
+  const [saving, setSaving]   = useState(false)
 
   useEffect(() => {
     if (!open || !session) return
-    setDate(format(parseISO(session.started_at), "yyyy-MM-dd'T'HH:mm"))
+    setStartDate(format(parseISO(session.started_at), "yyyy-MM-dd'T'HH:mm"))
+    setEndDate(session.ended_at ? format(parseISO(session.ended_at), "yyyy-MM-dd'T'HH:mm") : '')
     setNotes(session.notes || '')
     supabase.from('session_sets').select('*')
       .eq('session_id', session.id).order('exercise_name').order('set_number')
@@ -410,14 +412,22 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
 
   const save = async () => {
     setSaving(true)
-    const newDate = new Date(date)
+    const newStart = new Date(startDate)
+    const newEnd   = endDate ? new Date(endDate) : null
+    const duration = newEnd && newStart ? Math.round((newEnd - newStart) / 1000) : null
+
     await supabase.from('workout_sessions')
-      .update({ started_at: newDate.toISOString(), notes: notes.trim() || null })
+      .update({
+        started_at: newStart.toISOString(),
+        ended_at: newEnd?.toISOString() || null,
+        duration_seconds: duration,
+        notes: notes.trim() || null,
+      })
       .eq('id', session.id)
 
     // Delete all old sets and reinsert
     await supabase.from('session_sets').delete().eq('session_id', session.id)
-    const rows = sets.filter(s => s.reps || s.weight).map((s, i) => ({
+    const rows = sets.filter(s => s.reps || s.weight).map((s) => ({
       session_id: session.id,
       exercise_name: s.exercise_name,
       set_number: s.set_number,
@@ -430,7 +440,7 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
     if (rows.length) await supabase.from('session_sets').insert(rows)
 
     setSaving(false)
-    onSaved({ ...session, started_at: newDate.toISOString(), notes })
+    onSaved({ ...session, started_at: newStart.toISOString(), ended_at: newEnd?.toISOString() || null, duration_seconds: duration, notes })
     onClose()
   }
 
@@ -444,11 +454,19 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
   return (
     <Modal open={open} onClose={onClose} title="Edit Log">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[#777] text-sm font-medium">Date & Time</label>
-          <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-            className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
-              focus:outline-none focus:border-[#e8ff47]/50 w-full" />
+        <div className="flex gap-3">
+          <div className="flex flex-col gap-1.5 flex-1">
+            <label className="text-[#777] text-sm font-medium">Start</label>
+            <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)}
+              className="h-12 px-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
+                focus:outline-none focus:border-[#e8ff47]/50 w-full" />
+          </div>
+          <div className="flex flex-col gap-1.5 flex-1">
+            <label className="text-[#777] text-sm font-medium">End</label>
+            <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)}
+              className="h-12 px-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
+                focus:outline-none focus:border-[#e8ff47]/50 w-full" />
+          </div>
         </div>
 
         {Object.entries(byExercise).map(([name, exSets]) => (
