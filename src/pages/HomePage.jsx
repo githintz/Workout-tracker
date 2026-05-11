@@ -2,18 +2,42 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useSettings } from '../contexts/SettingsContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
-import { format } from 'date-fns'
+import { format, startOfWeek, endOfWeek } from 'date-fns'
+
+function WeeklyRing({ done, target }) {
+  const pct = target > 0 ? Math.min(done / target, 1) : 0
+  const r = 32, cx = 40, cy = 40, circ = 2 * Math.PI * r
+  const dash = circ * pct
+  const color = done >= target ? '#4fdf7c' : '#e8ff47'
+  return (
+    <div className="relative w-20 h-20 flex items-center justify-center">
+      <svg width="80" height="80" className="-rotate-90 absolute inset-0">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1e1e1e" strokeWidth="5" />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="5"
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray 0.5s ease' }} />
+      </svg>
+      <div className="flex flex-col items-center z-10">
+        <span className="text-white text-xl font-bold leading-none">{done}</span>
+        <span className="text-[#555] text-[10px] leading-none mt-0.5">/{target}</span>
+      </div>
+    </div>
+  )
+}
 
 export default function HomePage() {
   const { user }    = useAuth()
+  const { settings } = useSettings()
   const navigate    = useNavigate()
   const [plan, setPlan]       = useState(null)
   const [days, setDays]       = useState([])
   const [recent, setRecent]   = useState([])
+  const [weekSessions, setWeekSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [todaySession, setTodaySession] = useState(null)
 
@@ -24,27 +48,26 @@ export default function HomePage() {
 
   async function loadData() {
     setLoading(true)
-    const [{ data: planData }, { data: sessionData }] = await Promise.all([
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString()
+    const weekEnd   = endOfWeek(new Date(),   { weekStartsOn: 1 }).toISOString()
+
+    const [{ data: planData }, { data: sessionData }, { data: weekData }] = await Promise.all([
       supabase.from('workout_plans').select('*').eq('user_id', user.id).eq('is_active', true).single(),
-      supabase.from('workout_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('started_at', { ascending: false })
-        .limit(5),
+      supabase.from('workout_sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(5),
+      supabase.from('workout_sessions').select('id').eq('user_id', user.id).gte('started_at', weekStart).lte('started_at', weekEnd),
     ])
     setPlan(planData)
     setRecent(sessionData || [])
+    setWeekSessions(weekData || [])
 
     if (planData) {
       const { data: dayData } = await supabase
-        .from('workout_days').select('*')
-        .eq('plan_id', planData.id).order('day_number')
+        .from('workout_days').select('*').eq('plan_id', planData.id).order('day_number')
       setDays(dayData || [])
     }
 
     const today = format(new Date(), 'yyyy-MM-dd')
-    const todaySess = sessionData?.find(s => s.started_at?.startsWith(today))
-    setTodaySession(todaySess || null)
+    setTodaySession(sessionData?.find(s => s.started_at?.startsWith(today)) || null)
     setLoading(false)
   }
 
@@ -57,33 +80,47 @@ export default function HomePage() {
     return 'Good evening'
   }
 
+  const weeklyTarget = settings.weekly_target || 4
+  const weekDone     = weekSessions.length
+
   return (
     <div className="flex flex-col gap-5 px-4 py-5">
       {/* Greeting */}
-      <div>
-        <p className="text-[#777] text-sm">{greeting()}</p>
-        <h1 className="text-2xl font-bold text-white mt-0.5">
-          {format(new Date(), 'EEEE, MMM d')}
-        </h1>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-[#555] text-sm">{greeting()}</p>
+          <h1 className="text-2xl font-bold text-white mt-0.5">{format(new Date(), 'EEEE, MMM d')}</h1>
+        </div>
       </div>
+
+      {/* Weekly target */}
+      <Card className="flex items-center gap-5">
+        <WeeklyRing done={weekDone} target={weeklyTarget} />
+        <div className="flex-1">
+          <p className="text-[#777] text-xs font-medium uppercase tracking-wider mb-0.5">This Week</p>
+          <p className="text-white font-bold text-lg leading-tight">
+            {weekDone >= weeklyTarget ? 'Target reached! 🎉' : `${weeklyTarget - weekDone} workout${weeklyTarget - weekDone !== 1 ? 's' : ''} to go`}
+          </p>
+          <p className="text-[#555] text-sm mt-0.5">{weekDone} of {weeklyTarget} workouts</p>
+        </div>
+      </Card>
 
       {/* Active plan card */}
       {plan ? (
         <Card className="flex flex-col gap-4">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[#777] text-xs font-medium uppercase tracking-wider mb-1">Active Plan</p>
+              <p className="text-[#555] text-xs font-medium uppercase tracking-wider mb-1">Active Plan</p>
               <p className="text-white font-bold text-xl">{plan.name}</p>
-              <p className="text-[#555] text-sm mt-0.5">{days.length} days</p>
+              <p className="text-[#444] text-sm mt-0.5">{days.length} days</p>
             </div>
             <span className="text-[#e8ff47] text-xs font-bold bg-[#e8ff47]/10 px-2 h-6 rounded-full flex items-center">ACTIVE</span>
           </div>
 
-          {/* Day chips */}
           <div className="flex flex-col gap-2">
             {days.map(d => (
-              <div key={d.id} className="flex items-center gap-2">
-                <span className="text-[#555] text-xs w-12 shrink-0">Day {d.day_number}</span>
+              <div key={d.id} className="flex items-center gap-2 py-1">
+                <span className="text-[#444] text-xs w-12 shrink-0">Day {d.day_number}</span>
                 <span className="text-white text-sm font-medium flex-1">{d.title}</span>
                 <div className="flex gap-1 flex-wrap justify-end">
                   {d.muscle_groups?.slice(0,2).map(g => <MuscleChip key={g} group={g} />)}
@@ -97,7 +134,7 @@ export default function HomePage() {
               <span className="text-xl">✅</span>
               <div>
                 <p className="text-[#4fdf7c] font-semibold text-sm">Workout logged today!</p>
-                <p className="text-[#555] text-xs">{todaySession.day_title}</p>
+                <p className="text-[#444] text-xs">{todaySession.day_title}</p>
               </div>
             </div>
           ) : (
@@ -119,40 +156,33 @@ export default function HomePage() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3">
-        <Card onClick={() => navigate('/track')} className="flex flex-col gap-2 items-center py-5 text-center">
-          <span className="text-3xl">🎯</span>
-          <span className="text-white font-semibold text-sm">Track Workout</span>
-        </Card>
-        <Card onClick={() => navigate('/cardio')} className="flex flex-col gap-2 items-center py-5 text-center">
-          <span className="text-3xl">🏃</span>
-          <span className="text-white font-semibold text-sm">Log Cardio</span>
-        </Card>
-        <Card onClick={() => navigate('/analytics')} className="flex flex-col gap-2 items-center py-5 text-center">
-          <span className="text-3xl">📊</span>
-          <span className="text-white font-semibold text-sm">Analytics</span>
-        </Card>
-        <Card onClick={() => navigate('/plans')} className="flex flex-col gap-2 items-center py-5 text-center">
-          <span className="text-3xl">📝</span>
-          <span className="text-white font-semibold text-sm">My Plans</span>
-        </Card>
+        {[
+          { icon: '🎯', label: 'Track Workout', to: '/track' },
+          { icon: '🏃', label: 'Log Cardio',    to: '/cardio' },
+          { icon: '📊', label: 'Analytics',      to: '/analytics' },
+          { icon: '📝', label: 'My Plans',       to: '/plans' },
+        ].map(({ icon, label, to }) => (
+          <Card key={to} onClick={() => navigate(to)} className="flex flex-col gap-2 items-center py-5 text-center">
+            <span className="text-3xl">{icon}</span>
+            <span className="text-white font-semibold text-sm">{label}</span>
+          </Card>
+        ))}
       </div>
 
       {/* Recent sessions */}
       {recent.length > 0 && (
         <div>
-          <p className="text-[#777] text-xs font-medium uppercase tracking-wider mb-3">Recent Sessions</p>
+          <p className="text-[#555] text-xs font-medium uppercase tracking-wider mb-3">Recent Sessions</p>
           <div className="flex flex-col gap-2">
             {recent.slice(0, 3).map(s => (
               <Card key={s.id} className="flex items-center gap-3 py-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#1e1e1e] flex items-center justify-center text-lg shrink-0">💪</div>
+                <div className="w-10 h-10 rounded-2xl bg-[#1a1a1a] flex items-center justify-center text-lg shrink-0">💪</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-medium text-sm truncate">{s.day_title || 'Workout'}</p>
-                  <p className="text-[#555] text-xs">{format(new Date(s.started_at), 'EEE, MMM d')}</p>
+                  <p className="text-[#444] text-xs">{format(new Date(s.started_at), 'EEE, MMM d')}</p>
                 </div>
                 {s.duration_seconds && (
-                  <span className="text-[#777] text-xs shrink-0">
-                    {Math.round(s.duration_seconds / 60)}m
-                  </span>
+                  <span className="text-[#555] text-xs shrink-0">{Math.round(s.duration_seconds / 60)}m</span>
                 )}
               </Card>
             ))}
