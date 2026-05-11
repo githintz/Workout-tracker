@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext'
 
 const SettingsContext = createContext(null)
 
-const DEFAULTS = { rest_timer_seconds: 90, weight_unit: 'kg' }
+const DEFAULTS = { rest_timer_seconds: 90, weight_unit: 'kg', weekly_target: 4 }
 
 export function SettingsProvider({ children }) {
   const { user } = useAuth()

@@ -68,6 +68,22 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* Weekly target */}
+      <Card>
+        <p className="text-white font-semibold mb-1">Weekly Workout Target</p>
+        <p className="text-[#555] text-sm mb-4">Number of workouts to aim for each week</p>
+        <div className="flex gap-2">
+          {[2,3,4,5,6,7].map(n => (
+            <button key={n} onClick={() => update({ weekly_target: n })}
+              className={`flex-1 h-11 rounded-2xl text-sm font-semibold transition-all active:scale-95 ${
+                settings.weekly_target === n ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
+              }`}>
+              {n}
+            </button>
+          ))}
+        </div>
+      </Card>
+
       {/* Account */}
       <Card>
         <p className="text-white font-semibold mb-1">Account</p>

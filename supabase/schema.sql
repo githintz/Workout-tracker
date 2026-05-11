@@ -96,6 +96,7 @@ create table if not exists user_settings (
   user_id             uuid references auth.users(id) on delete cascade not null unique,
   rest_timer_seconds  int default 90,
   weight_unit         text default 'kg' check (weight_unit in ('kg', 'lbs')),
+  weekly_target       int default 4,
   updated_at          timestamptz default now()
 );
 
@@ -150,3 +151,6 @@ create policy "settings_own" on user_settings for all using (auth.uid() = user_i
 -- Feedback: own rows
 alter table feedback enable row level security;
 create policy "feedback_own" on feedback for all using (auth.uid() = user_id);
+
+-- Migration: run if table already exists
+-- alter table user_settings add column if not exists weekly_target int default 4;

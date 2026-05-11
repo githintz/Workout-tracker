@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 
 // ─── beep via Web Audio ────────────────────────────────────────────────────────
 function playBeep() {
@@ -57,53 +57,141 @@ function RestTimerRing({ remaining, total, running, onAddTime, onToggle, onSkip 
   )
 }
 
+// ─── Exercise History Modal ───────────────────────────────────────────────────
+function ExerciseHistoryModal({ name, unit, open, onClose }) {
+  const [rows, setRows]     = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open || !name) return
+    setLoading(true)
+    Promise.all([
+      supabase.from('session_sets')
+        .select('set_number, weight, reps, partner_weight, partner_reps, completed_at, superset_partner_name, workout_sessions(started_at, day_title)')
+        .eq('exercise_name', name)
+        .order('completed_at', { ascending: false })
+        .limit(60),
+      supabase.from('session_sets')
+        .select('set_number, weight, reps, partner_weight, partner_reps, completed_at, superset_partner_name, workout_sessions(started_at, day_title)')
+        .eq('superset_partner_name', name)
+        .order('completed_at', { ascending: false })
+        .limit(60),
+    ]).then(([{ data: primary }, { data: partner }]) => {
+      const p1 = (primary || []).map(s => ({ ...s, _w: s.weight, _r: s.reps }))
+      const p2 = (partner || []).map(s => ({ ...s, _w: s.partner_weight, _r: s.partner_reps }))
+      const combined = [...p1, ...p2]
+        .filter(s => s._w || s._r)
+        .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+      setRows(combined)
+      setLoading(false)
+    })
+  }, [open, name])
+
+  const byDate = rows.reduce((acc, s) => {
+    const key = format(parseISO(s.workout_sessions?.started_at || s.completed_at), 'EEE, MMM d')
+    if (!acc[key]) acc[key] = []
+    acc[key].push(s)
+    return acc
+  }, {})
+
+  const maxWeight = rows.reduce((m, s) => s._w ? Math.max(m, +s._w) : m, 0)
+  const sessions  = Object.keys(byDate).length
+
+  return (
+    <Modal open={open} onClose={onClose} title={name}>
+      <div className="flex flex-col gap-4">
+        {loading ? (
+          <p className="text-[#555] text-sm text-center py-6">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-[#555] text-sm text-center py-6">No history yet for this exercise</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {maxWeight > 0 && (
+                <div className="bg-[#1a1a1a] rounded-2xl p-3 text-center">
+                  <p className="text-[#e8ff47] text-2xl font-bold">{maxWeight}</p>
+                  <p className="text-[#555] text-xs mt-0.5">{unit} best</p>
+                </div>
+              )}
+              <div className="bg-[#1a1a1a] rounded-2xl p-3 text-center">
+                <p className="text-white text-2xl font-bold">{sessions}</p>
+                <p className="text-[#555] text-xs mt-0.5">sessions</p>
+              </div>
+            </div>
+
+            {Object.entries(byDate).slice(0, 8).map(([date, sets]) => (
+              <div key={date} className="flex flex-col gap-1">
+                <p className="text-[#555] text-xs font-medium uppercase tracking-wide">{date}</p>
+                {sets.map((s, i) => (
+                  <div key={i} className="flex items-center gap-3 bg-[#161616] rounded-xl px-3 h-10">
+                    <span className="text-[#444] text-xs w-5 text-center">{s.set_number}</span>
+                    <span className="text-white text-sm font-semibold flex-1">{s._w ?? '—'}<span className="text-[#444] font-normal text-xs ml-0.5">{unit}</span></span>
+                    <span className="text-[#555] text-xs">×</span>
+                    <span className="text-white text-sm font-semibold flex-1 text-right">{s._r ?? '—'}<span className="text-[#444] font-normal text-xs ml-0.5">reps</span></span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Set Entry Row ─────────────────────────────────────────────────────────────
 function SetRow({ setNum, weight, reps, onChange, onRemove, onToggleLock, locked, unit }) {
   if (locked) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="text-[#4fdf7c] w-6 text-center text-base shrink-0">✓</span>
-        <div className="flex-1 h-12 rounded-2xl bg-[#1a1a1a] flex items-center justify-center text-white text-lg font-semibold">
-          {weight || '—'}
+      <div className="flex items-center gap-2.5 bg-[#161616] border border-[#4fdf7c]/10 rounded-2xl px-3 h-14">
+        <div className="w-7 h-7 rounded-full bg-[#4fdf7c]/15 flex items-center justify-center shrink-0">
+          <span className="text-[#4fdf7c] text-xs font-bold leading-none">✓</span>
         </div>
-        <span className="text-[#555] text-xs w-5 text-center shrink-0">{unit}</span>
-        <div className="flex-1 h-12 rounded-2xl bg-[#1a1a1a] flex items-center justify-center text-white text-lg font-semibold">
-          {reps || '—'}
+        <div className="flex-1 flex items-center justify-center gap-1">
+          <span className="text-white text-lg font-semibold">{weight || '—'}</span>
+          <span className="text-[#444] text-xs">{unit}</span>
         </div>
-        <span className="text-[#555] text-xs w-7 shrink-0">reps</span>
+        <div className="w-px h-5 bg-[#222] shrink-0" />
+        <div className="flex-1 flex items-center justify-center gap-1">
+          <span className="text-white text-lg font-semibold">{reps || '—'}</span>
+          <span className="text-[#444] text-xs">reps</span>
+        </div>
         <button onClick={onToggleLock}
-          className="w-8 h-8 flex items-center justify-center text-[#555] hover:text-[#e8ff47] transition-colors shrink-0 text-sm">
+          className="w-8 h-8 flex items-center justify-center text-[#383838] hover:text-[#666] transition-colors shrink-0 text-sm">
           ✏️
         </button>
       </div>
     )
   }
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-[#555] text-sm w-6 text-center shrink-0">{setNum}</span>
+    <div className="flex items-center gap-2.5 bg-[#161616] rounded-2xl px-3 h-14">
+      <div className="w-7 h-7 rounded-full bg-[#222] flex items-center justify-center shrink-0">
+        <span className="text-[#555] text-xs font-bold leading-none">{setNum}</span>
+      </div>
       <input
         type="number" value={weight} onChange={e => onChange('weight', e.target.value)}
         placeholder="0" inputMode="decimal"
-        className="flex-1 h-12 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-lg font-semibold focus:outline-none focus:border-[#e8ff47]/50"
+        className="flex-1 h-10 bg-transparent text-white text-center text-lg font-semibold focus:outline-none placeholder:text-[#333]"
       />
-      <span className="text-[#555] text-xs w-5 text-center shrink-0">{unit}</span>
+      <span className="text-[#333] text-xs shrink-0">{unit}</span>
+      <div className="w-px h-5 bg-[#222] shrink-0" />
       <input
         type="number" value={reps} onChange={e => onChange('reps', e.target.value)}
         placeholder="0" inputMode="numeric"
-        className="flex-1 h-12 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-lg font-semibold focus:outline-none focus:border-[#e8ff47]/50"
+        className="flex-1 h-10 bg-transparent text-white text-center text-lg font-semibold focus:outline-none placeholder:text-[#333]"
       />
       <button onClick={onToggleLock}
-        className="w-8 h-8 flex items-center justify-center rounded-full bg-[#4fdf7c]/10 text-[#4fdf7c] hover:bg-[#4fdf7c]/20 transition-colors shrink-0 text-base">
+        className="w-8 h-8 flex items-center justify-center rounded-full bg-[#4fdf7c]/10 text-[#4fdf7c] hover:bg-[#4fdf7c]/20 transition-colors shrink-0">
         ✓
       </button>
       <button onClick={onRemove}
-        className="w-8 h-8 flex items-center justify-center text-[#444] hover:text-[#ff4f4f] text-xl shrink-0">×</button>
+        className="w-7 h-7 flex items-center justify-center text-[#2e2e2e] hover:text-[#ff4f4f] text-xl shrink-0 transition-colors">×</button>
     </div>
   )
 }
 
 // ─── Superset Entry ────────────────────────────────────────────────────────────
-function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets }) {
+function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }) {
   const [A, B] = pair
 
   const addSet = () => {
@@ -127,11 +215,11 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets }) {
         <div className="flex flex-col gap-0.5 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-[#e8ff47] text-xs font-bold">A</span>
-            <span className="text-white text-sm font-medium">{A.exercise_name}</span>
+            <button onClick={() => onNameClick(A.exercise_name)} className="text-white text-sm font-medium hover:text-[#e8ff47] transition-colors text-left">{A.exercise_name}</button>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[#e8ff47] text-xs font-bold">B</span>
-            <span className="text-white text-sm font-medium">{B.exercise_name}</span>
+            <button onClick={() => onNameClick(B.exercise_name)} className="text-white text-sm font-medium hover:text-[#e8ff47] transition-colors text-left">{B.exercise_name}</button>
           </div>
         </div>
         <span className="text-[#e8ff47] text-xs font-bold bg-[#e8ff47]/10 px-2 h-5 rounded-full flex items-center">Superset</span>
@@ -189,7 +277,7 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets }) {
 }
 
 // ─── Single Exercise Entry ─────────────────────────────────────────────────────
-function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets }) {
+function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets, onNameClick }) {
   const addSet = () => {
     const last = sets[sets.length - 1]
     onSetsChange([...sets, { id: crypto.randomUUID(), weight: last?.weight || '', reps: last?.reps || '', locked: false }])
@@ -200,8 +288,10 @@ function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-white font-bold text-base">{exercise.exercise_name}</p>
-      {exercise.muscle_group && <p className="text-[#555] text-xs -mt-1">{exercise.muscle_group}</p>}
+      <button onClick={() => onNameClick(exercise.exercise_name)} className="text-white font-bold text-base text-left hover:text-[#e8ff47] transition-colors">
+        {exercise.exercise_name}
+      </button>
+      {exercise.muscle_group && <p className="text-[#444] text-xs -mt-1">{exercise.muscle_group}</p>}
 
       {/* Previous workout row */}
       {prevSets?.length > 0 && (
@@ -215,12 +305,12 @@ function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets }) {
         </div>
       )}
 
-      <div className="flex items-center gap-2 px-1 mt-1">
-        <span className="w-6" />
-        <span className="flex-1 text-center text-[#555] text-xs">Weight ({unit})</span>
-        <span className="w-5" />
-        <span className="flex-1 text-center text-[#555] text-xs">Reps</span>
-        <span className="w-8" /><span className="w-8" />
+      <div className="flex items-center gap-2.5 px-3 mt-1">
+        <span className="w-7" />
+        <span className="flex-1 text-center text-[#383838] text-xs">Weight</span>
+        <span className="w-4" />
+        <span className="flex-1 text-center text-[#383838] text-xs">Reps</span>
+        <span className="w-16" />
       </div>
 
       {sets.map((s, i) => (
@@ -268,6 +358,7 @@ export default function TrackPage() {
   const [finishing, setFinishing] = useState(false)
   const [showAddEx, setShowAddEx]   = useState(false)
   const [customExName, setCustomExName] = useState('')
+  const [exHistory, setExHistory]   = useState(null)  // exercise name string
 
   const elapsedRef = useRef()
 
@@ -582,6 +673,7 @@ export default function TrackPage() {
               onSetsChange={s => setSets(prev => ({ ...prev, [item.key]: s }))}
               unit={unit}
               prevSets={prevSetsMap[item.pair[0].exercise_name] || []}
+              onNameClick={setExHistory}
             />
           ) : item?.type === 'exercise' ? (
             <ExerciseEntry
@@ -590,6 +682,7 @@ export default function TrackPage() {
               onSetsChange={s => setSets(prev => ({ ...prev, [item.key]: s }))}
               unit={unit}
               prevSets={prevSetsMap[item.ex.exercise_name] || []}
+              onNameClick={setExHistory}
             />
           ) : null}
         </div>
@@ -654,6 +747,12 @@ export default function TrackPage() {
             onAddTime={addRestTime} onToggle={pauseResumeRest} onSkip={skipRest}
           />
         </Modal>
+
+        {/* Exercise history modal */}
+        <ExerciseHistoryModal
+          name={exHistory} unit={unit}
+          open={!!exHistory} onClose={() => setExHistory(null)}
+        />
       </div>
     )
   }

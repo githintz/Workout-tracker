@@ -118,8 +118,8 @@ export function Layout({ children }) {
           {NAV.map(({ to, icon, label }) => (
             <NavLink key={to} to={to} end={to === '/'}
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 px-3 py-1 rounded-2xl transition-all min-w-[52px] ${
-                  isActive ? 'text-[#e8ff47]' : 'text-[#555]'
+                `flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition-all min-w-[52px] ${
+                  isActive ? 'text-[#e8ff47] bg-[#e8ff47]/8' : 'text-[#555]'
                 }`
               }
             >
