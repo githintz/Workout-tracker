@@ -21,7 +21,27 @@ function FeedbackModal({ open, onClose, page }) {
   const submit = async () => {
     if (!text.trim()) return
     setSaving(true)
+
     await supabase.from('feedback').insert({ user_id: user?.id, page, message: text.trim() })
+
+    // Mirror to GitHub Issues so Claude can read feedback directly via MCP
+    const ghToken = import.meta.env.VITE_GITHUB_ISSUES_TOKEN
+    if (ghToken) {
+      await fetch('https://api.github.com/repos/githintz/workout-tracker/issues', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${ghToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.github+json',
+        },
+        body: JSON.stringify({
+          title: `[Feedback] ${page} — ${new Date().toLocaleDateString()}`,
+          body: `**Page:** ${page}\n\n${text.trim()}`,
+          labels: ['feedback'],
+        }),
+      }).catch(() => {})
+    }
+
     setSaving(false)
     setDone(true)
     setTimeout(() => { setDone(false); setText(''); onClose() }, 1500)
