@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -24,7 +24,6 @@ function FeedbackModal({ open, onClose, page }) {
 
     await supabase.from('feedback').insert({ user_id: user?.id, page, message: text.trim() })
 
-    // Mirror to GitHub Issues so Claude can read feedback directly via MCP
     const ghToken = import.meta.env.VITE_GITHUB_ISSUES_TOKEN
     if (ghToken) {
       await fetch('https://api.github.com/repos/githintz/workout-tracker/issues', {
@@ -92,12 +91,18 @@ export function Layout({ children }) {
   const [showFeedback, setShowFeedback] = useState(false)
   const currentPage = NAV.find(n => n.to === location.pathname)?.label || location.pathname
 
+  useEffect(() => {
+    const saved = localStorage.getItem('lift_theme') || 'dark'
+    if (saved === 'light') document.documentElement.classList.add('light')
+    else document.documentElement.classList.remove('light')
+  }, [])
+
   return (
     <div className="flex flex-col min-h-dvh max-w-2xl mx-auto w-full">
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 h-14 shrink-0 border-b border-[#1e1e1e] sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-xl z-30">
-        <span className="text-[#e8ff47] font-black text-lg tracking-tight">LIFT</span>
-        <span className="text-[#555] text-xs">{currentPage}</span>
+        <span className="text-[#e8ff47] font-black text-xl tracking-tight">LIFT</span>
+        <span className="text-[#555] text-xs font-medium">{currentPage}</span>
         <button
           onClick={() => setShowFeedback(true)}
           className="h-8 px-3 rounded-full bg-[#1e1e1e] border border-[#2e2e2e] text-[#777] text-xs font-medium
@@ -108,27 +113,32 @@ export function Layout({ children }) {
       </header>
 
       {/* Page content */}
-      <main className="flex-1 overflow-y-auto pb-24">
+      <main className="flex-1 overflow-y-auto pb-32">
         {children}
       </main>
 
-      {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-[#0a0a0a]/95 backdrop-blur-xl border-t border-[#1e1e1e] z-30" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="flex items-center justify-around h-16">
-          {NAV.map(({ to, icon, label }) => (
-            <NavLink key={to} to={to} end={to === '/'}
-              className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition-all min-w-[52px] ${
-                  isActive ? 'text-[#e8ff47] bg-[#e8ff47]/8' : 'text-[#555]'
-                }`
-              }
-            >
-              <span className="text-xl leading-none">{icon}</span>
-              <span className="text-[10px] font-medium leading-none">{label}</span>
-            </NavLink>
-          ))}
-        </div>
-      </nav>
+      {/* Floating island nav */}
+      <div
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-30 pointer-events-none"
+        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+      >
+        <nav className="pointer-events-auto bg-[#111] border border-[#1e1e1e] rounded-3xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-around h-16 px-1">
+            {NAV.map(({ to, icon, label }) => (
+              <NavLink key={to} to={to} end={to === '/'}
+                className={({ isActive }) =>
+                  `flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all min-w-[48px] ${
+                    isActive ? 'bg-[#e8ff47] text-black' : 'text-[#555]'
+                  }`
+                }
+              >
+                <span className="text-xl leading-none">{icon}</span>
+                <span className="text-[10px] font-semibold leading-none">{label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      </div>
 
       <FeedbackModal open={showFeedback} onClose={() => setShowFeedback(false)} page={currentPage} />
     </div>
