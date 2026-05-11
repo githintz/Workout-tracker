@@ -37,15 +37,155 @@ function CustomTooltip({ active, payload, label }) {
   )
 }
 
+// ─── Session Detail Modal ─────────────────────────────────────────────────────
+function SessionDetailModal({ session, open, onClose, onEdit }) {
+  const { settings } = useSettings()
+  const unit = settings.weight_unit || 'kg'
+  const [sets, setSets]   = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open || !session) return
+    setLoading(true)
+    supabase.from('session_sets').select('*')
+      .eq('session_id', session.id).order('exercise_name').order('set_number')
+      .then(({ data }) => { setSets(data || []); setLoading(false) })
+  }, [open, session])
+
+  function formatDur(secs) {
+    if (!secs) return null
+    const m = Math.floor(secs / 60), s = secs % 60
+    return m > 0 ? `${m}m ${s}s` : `${s}s`
+  }
+
+  // Group sets by exercise, pairing superset A+B together
+  const grouped = []
+  const seen = new Set()
+  for (const s of sets) {
+    if (seen.has(s.exercise_name)) continue
+    seen.add(s.exercise_name)
+    const exSets = sets.filter(r => r.exercise_name === s.exercise_name)
+    if (s.superset_partner_name) {
+      grouped.push({ type: 'superset', nameA: s.exercise_name, nameB: s.superset_partner_name, sets: exSets })
+    } else {
+      grouped.push({ type: 'single', name: s.exercise_name, sets: exSets })
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={session?.day_title || 'Workout'}>
+      <div className="flex flex-col gap-4">
+        {/* Meta info */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {session && <>
+            <div>
+              <p className="text-[#555] text-xs">Date</p>
+              <p className="text-white text-sm font-medium">{format(parseISO(session.started_at), 'EEE, MMM d yyyy')}</p>
+            </div>
+            <div>
+              <p className="text-[#555] text-xs">Start</p>
+              <p className="text-white text-sm font-medium">{format(parseISO(session.started_at), 'h:mm a')}</p>
+            </div>
+            {session.ended_at && (
+              <div>
+                <p className="text-[#555] text-xs">End</p>
+                <p className="text-white text-sm font-medium">{format(parseISO(session.ended_at), 'h:mm a')}</p>
+              </div>
+            )}
+            {session.duration_seconds && (
+              <div>
+                <p className="text-[#555] text-xs">Duration</p>
+                <p className="text-[#e8ff47] text-sm font-semibold">{formatDur(session.duration_seconds)}</p>
+              </div>
+            )}
+          </>}
+        </div>
+
+        {session?.muscle_groups?.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {session.muscle_groups.map(g => <MuscleChip key={g} group={g} />)}
+          </div>
+        )}
+
+        {/* Sets */}
+        {loading ? (
+          <p className="text-[#555] text-sm text-center py-4">Loading…</p>
+        ) : grouped.length === 0 ? (
+          <p className="text-[#555] text-sm text-center py-4">No sets logged</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {grouped.map((g, gi) => (
+              <div key={gi} className="flex flex-col gap-1.5">
+                {g.type === 'superset' ? (
+                  <>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-white font-semibold text-sm">{g.nameA}</p>
+                      <span className="text-[#e8ff47] text-xs bg-[#e8ff47]/10 px-2 h-5 rounded-full flex items-center font-bold shrink-0">SS</span>
+                      <p className="text-white font-semibold text-sm">{g.nameB}</p>
+                    </div>
+                    <div className="flex items-center gap-2 px-1">
+                      <span className="w-5 text-[#555] text-xs">#</span>
+                      <span className="flex-1 text-center text-[#555] text-xs">A ({g.nameA.split(' ')[0]})</span>
+                      <span className="flex-1 text-center text-[#555] text-xs">B ({g.nameB.split(' ')[0]})</span>
+                    </div>
+                    {g.sets.map((s, si) => (
+                      <div key={si} className="flex items-center gap-2 text-sm">
+                        <span className="w-5 text-[#555] text-xs text-center">{s.set_number}</span>
+                        <span className="flex-1 text-center text-white font-medium">{s.weight ?? '—'}{unit} × {s.reps ?? '—'}</span>
+                        <span className="flex-1 text-center text-[#aaa]">{s.partner_weight ?? '—'}{unit} × {s.partner_reps ?? '—'}</span>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-white font-semibold text-sm">{g.name}</p>
+                    {g.sets.map((s, si) => (
+                      <div key={si} className="flex items-center gap-3 text-sm">
+                        <span className="w-5 text-[#555] text-xs text-center">{s.set_number}</span>
+                        <span className="text-white font-medium">{s.weight ?? '—'}{unit} × {s.reps ?? '—'} reps</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {session?.notes && (
+          <div className="bg-[#1a1a1a] rounded-2xl px-3 py-2">
+            <p className="text-[#555] text-xs mb-1">Notes</p>
+            <p className="text-white text-sm">{session.notes}</p>
+          </div>
+        )}
+
+        <Button size="lg" className="w-full" onClick={() => { onClose(); onEdit(session) }}>
+          Edit this workout
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Calendar Heatmap ──────────────────────────────────────────────────────────
-function CalendarHeatmap({ sessions, cardioSessions, filterMuscle }) {
+function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClick }) {
   const [month, setMonth] = useState(new Date())
+  const [selDay, setSelDay] = useState(null)
   const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) })
   const firstDow = getDay(days[0])
 
   const hasWorkout = (day) => sessions.some(s => isSameDay(parseISO(s.started_at), day) &&
     (!filterMuscle || s.muscle_groups?.includes(filterMuscle)))
   const hasCardio  = (day) => cardioSessions.some(s => isSameDay(parseISO(s.date), day))
+
+  const daySessions = selDay ? sessions.filter(s => isSameDay(parseISO(s.started_at), selDay)) : []
+  const dayCardio   = selDay ? cardioSessions.filter(s => isSameDay(parseISO(s.date), selDay)) : []
+
+  function formatDur(secs) {
+    if (!secs) return null
+    const m = Math.floor(secs / 60)
+    return m > 0 ? `${m}m` : `${secs}s`
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -68,15 +208,19 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle }) {
         {days.map(day => {
           const w = hasWorkout(day), c = hasCardio(day)
           const isToday = isSameDay(day, new Date())
+          const isSel   = selDay && isSameDay(selDay, day)
           return (
-            <div key={day.toISOString()}
+            <button key={day.toISOString()}
+              onClick={() => (w || c) && setSelDay(isSel ? null : day)}
               className={`aspect-square rounded-xl flex items-center justify-center text-xs font-medium transition-all relative
                 ${isToday ? 'ring-1 ring-[#e8ff47]/50' : ''}
-                ${w ? 'bg-[#e8ff47]/20 text-[#e8ff47]' : c ? 'bg-[#4fa8ff]/20 text-[#4fa8ff]' : 'bg-[#1a1a1a] text-[#444]'}`}
+                ${isSel ? 'ring-2 ring-white/40' : ''}
+                ${w ? 'bg-[#e8ff47]/20 text-[#e8ff47]' : c ? 'bg-[#4fa8ff]/20 text-[#4fa8ff]' : 'bg-[#1a1a1a] text-[#444]'}
+                ${(w || c) ? 'active:scale-90' : 'cursor-default'}`}
             >
               {format(day, 'd')}
               {w && c && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-[#4fa8ff] rounded-full" />}
-            </div>
+            </button>
           )
         })}
       </div>
@@ -85,6 +229,32 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle }) {
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#e8ff47]/30" />Workout</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#4fa8ff]/30" />Cardio</span>
       </div>
+
+      {/* Day detail panel */}
+      {selDay && (daySessions.length > 0 || dayCardio.length > 0) && (
+        <div className="bg-[#1a1a1a] rounded-2xl p-3 flex flex-col gap-2">
+          <p className="text-[#555] text-xs font-medium">{format(selDay, 'EEEE, MMM d')}</p>
+          {daySessions.map(s => (
+            <button key={s.id} onClick={() => onSessionClick(s)}
+              className="flex items-center justify-between py-2 border-b border-[#222] last:border-0 text-left active:opacity-70">
+              <div>
+                <p className="text-white text-sm font-medium">{s.day_title || 'Workout'}</p>
+                <p className="text-[#555] text-xs">{s.plan_name}{s.duration_seconds ? ` · ${formatDur(s.duration_seconds)}` : ''}</p>
+              </div>
+              <span className="text-[#e8ff47] text-xs shrink-0">View →</span>
+            </button>
+          ))}
+          {dayCardio.map(s => (
+            <div key={s.id} className="flex items-center justify-between py-2 border-b border-[#222] last:border-0">
+              <div>
+                <p className="text-white text-sm font-medium capitalize">{s.type}</p>
+                <p className="text-[#555] text-xs">{[s.distance_km && `${s.distance_km} km`, s.duration_seconds && formatDur(s.duration_seconds)].filter(Boolean).join(' · ')}</p>
+              </div>
+              <span className="text-[#4fa8ff] text-xs">Cardio</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -171,21 +341,29 @@ function OverviewTab({ sessions, cardioSessions }) {
 
 // ─── Exercises Tab ─────────────────────────────────────────────────────────────
 function ExercisesTab({ allSets }) {
-  const exercises = useMemo(() => [...new Set(allSets.map(s => s.exercise_name))].sort(), [allSets])
+  const exercises = useMemo(() => {
+    const names = new Set(allSets.map(s => s.exercise_name))
+    allSets.forEach(s => { if (s.superset_partner_name) names.add(s.superset_partner_name) })
+    return [...names].sort()
+  }, [allSets])
   const [selected, setSelected] = useState('')
 
   const progression = useMemo(() => {
     if (!selected) return []
-    return allSets
-      .filter(s => s.exercise_name === selected && s.weight && s.reps)
+    // Combine primary sets and superset-partner sets for this exercise
+    const primary = allSets.filter(s => s.exercise_name === selected && s.weight != null && s.reps != null)
+    const partner = allSets
+      .filter(s => s.superset_partner_name === selected && s.partner_weight != null && s.partner_reps != null)
+      .map(s => ({ ...s, weight: s.partner_weight, reps: s.partner_reps }))
+    return [...primary, ...partner]
       .sort((a,b) => new Date(a.completed_at) - new Date(b.completed_at))
       .reduce((acc, s) => {
         const date = format(parseISO(s.completed_at), 'MMM d')
         const last = acc[acc.length - 1]
         if (last?.date === date) {
-          if (s.weight > last.Weight) { last.Weight = s.weight; last.Reps = s.reps }
+          if (+s.weight > last.Weight) { last.Weight = +s.weight; last.Reps = +s.reps }
         } else {
-          acc.push({ date, Weight: s.weight, Reps: s.reps })
+          acc.push({ date, Weight: +s.weight, Reps: +s.reps })
         }
         return acc
       }, [])
@@ -518,11 +696,10 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
 }
 
 // ─── History Tab ──────────────────────────────────────────────────────────────
-function HistoryTab({ sessions, onDelete, onEdit }) {
+function HistoryTab({ sessions, onDelete, onEdit, onView }) {
   function formatDur(secs) {
     if (!secs) return null
-    const m = Math.floor(secs / 60)
-    const s = secs % 60
+    const m = Math.floor(secs / 60), s = secs % 60
     return m > 0 ? `${m}m ${s}s` : `${s}s`
   }
 
@@ -533,7 +710,7 @@ function HistoryTab({ sessions, onDelete, onEdit }) {
   return (
     <div className="flex flex-col gap-3">
       {sessions.map(s => (
-        <Card key={s.id}>
+        <Card key={s.id} className="cursor-pointer active:opacity-80 transition-opacity" onClick={() => onView(s)}>
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#1e1e1e] flex items-center justify-center text-xl shrink-0">💪</div>
             <div className="flex-1 min-w-0">
@@ -542,7 +719,7 @@ function HistoryTab({ sessions, onDelete, onEdit }) {
                   <p className="text-white font-semibold truncate">{s.day_title || 'Workout'}</p>
                   <p className="text-[#555] text-xs">{s.plan_name || ''}</p>
                 </div>
-                <div className="flex gap-1.5 shrink-0">
+                <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                   <button onClick={() => onEdit(s)}
                     className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#777] hover:bg-[#e8ff47]/10 hover:text-[#e8ff47] transition-colors text-sm">✏️</button>
                   <button onClick={() => onDelete(s.id)}
@@ -553,22 +730,16 @@ function HistoryTab({ sessions, onDelete, onEdit }) {
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
                 <div>
                   <p className="text-[#555] text-xs">Date</p>
-                  <p className="text-white text-sm font-medium">
-                    {format(parseISO(s.started_at), 'EEE, MMM d yyyy')}
-                  </p>
+                  <p className="text-white text-sm font-medium">{format(parseISO(s.started_at), 'EEE, MMM d yyyy')}</p>
                 </div>
                 <div>
                   <p className="text-[#555] text-xs">Start</p>
-                  <p className="text-white text-sm font-medium">
-                    {format(parseISO(s.started_at), 'h:mm a')}
-                  </p>
+                  <p className="text-white text-sm font-medium">{format(parseISO(s.started_at), 'h:mm a')}</p>
                 </div>
                 {s.ended_at && (
                   <div>
                     <p className="text-[#555] text-xs">End</p>
-                    <p className="text-white text-sm font-medium">
-                      {format(parseISO(s.ended_at), 'h:mm a')}
-                    </p>
+                    <p className="text-white text-sm font-medium">{format(parseISO(s.ended_at), 'h:mm a')}</p>
                   </div>
                 )}
                 {s.duration_seconds && (
@@ -602,6 +773,7 @@ export default function AnalyticsPage() {
   const [cardio,    setCardio]    = useState([])
   const [loading,   setLoading]   = useState(true)
   const [filterMuscle, setFilterMuscle] = useState(null)
+  const [viewSession, setViewSession]   = useState(null)
   const [editSession, setEditSession]   = useState(null)
 
   const MUSCLE_GROUPS = ['Chest','Back','Shoulders','Biceps','Triceps','Legs','Glutes','Core']
@@ -666,15 +838,20 @@ export default function AnalyticsPage() {
               ))}
             </div>
             <Card>
-              <CalendarHeatmap sessions={sessions} cardioSessions={cardio} filterMuscle={filterMuscle} />
+              <CalendarHeatmap sessions={sessions} cardioSessions={cardio} filterMuscle={filterMuscle} onSessionClick={setViewSession} />
             </Card>
           </div>
         )}
         {tab === 2 && <ExercisesTab allSets={allSets} />}
         {tab === 3 && <CardioTab cardioSessions={cardio} />}
-        {tab === 4 && <HistoryTab sessions={sessions} onDelete={deleteSession} onEdit={setEditSession} />}
+        {tab === 4 && <HistoryTab sessions={sessions} onDelete={deleteSession} onEdit={setEditSession} onView={setViewSession} />}
       </div>
 
+      <SessionDetailModal
+        session={viewSession} open={!!viewSession}
+        onClose={() => setViewSession(null)}
+        onEdit={s => { setViewSession(null); setEditSession(s) }}
+      />
       <EditSessionModal
         session={editSession} open={!!editSession}
         onClose={() => setEditSession(null)}

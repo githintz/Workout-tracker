@@ -266,6 +266,8 @@ export default function TrackPage() {
 
   const [loading, setLoading]     = useState(true)
   const [finishing, setFinishing] = useState(false)
+  const [showAddEx, setShowAddEx]   = useState(false)
+  const [customExName, setCustomExName] = useState('')
 
   const elapsedRef = useRef()
 
@@ -419,6 +421,18 @@ export default function TrackPage() {
     setPhase('active')
   }
 
+  const addCustomExercise = () => {
+    const name = customExName.trim()
+    if (!name) return
+    const id = crypto.randomUUID()
+    const newEx = { id, exercise_name: name, is_superset: false, order_index: exercises.length, muscle_group: null }
+    setExercises(prev => [...prev, newEx])
+    setSets(prev => ({ ...prev, [id]: [{ id: crypto.randomUUID(), weight: '', reps: '', locked: false }] }))
+    setActiveExIdx(grouped.length)  // grouped.length is the current count, new ex goes there
+    setCustomExName('')
+    setShowAddEx(false)
+  }
+
   const finishWorkout = async () => {
     setFinishing(true)
     const endTime = new Date()
@@ -553,6 +567,10 @@ export default function TrackPage() {
                 }`}>{label}</button>
             )
           })}
+          <button onClick={() => setShowAddEx(true)}
+            className="shrink-0 px-3 h-8 rounded-full text-xs font-medium border border-dashed border-[#444] text-[#555] whitespace-nowrap">
+            + Add
+          </button>
         </div>
 
         {/* Active exercise entry */}
@@ -602,6 +620,32 @@ export default function TrackPage() {
               onClick={() => setActiveExIdx(i => i + 1)}>→</Button>
           </div>
         </div>
+
+        {/* Add custom exercise sheet */}
+        {showAddEx && (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowAddEx(false)} />
+            <div className="relative z-10 bg-[#141414] border-t border-[#2e2e2e] rounded-t-3xl p-5 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <p className="text-white font-semibold">Add Exercise</p>
+                <button onClick={() => setShowAddEx(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-[#2e2e2e] text-[#777] text-xl">×</button>
+              </div>
+              <input
+                type="text"
+                value={customExName}
+                onChange={e => setCustomExName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addCustomExercise()}
+                placeholder="Exercise name…"
+                autoFocus
+                className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
+                  placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 w-full"
+              />
+              <Button size="lg" className="w-full" onClick={addCustomExercise} disabled={!customExName.trim()}>
+                Add to Workout
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Rest timer modal */}
         <Modal open={showTimer} onClose={() => setShowTimer(false)} title="Rest Timer">
