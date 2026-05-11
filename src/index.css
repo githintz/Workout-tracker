@@ -2,20 +2,34 @@
 
 @layer base {
   :root {
-    --bg: #0a0a0a;
-    --surface: #141414;
-    --surface2: #1e1e1e;
-    --surface3: #2a2a2a;
-    --border: #2e2e2e;
+    --bg: #000000;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --surface3: #222222;
+    --border: #1e1e1e;
+    --border2: #2e2e2e;
     --text: #f0f0f0;
-    --text-muted: #777;
+    --text-sub: #777777;
+    --text-muted: #555555;
     --accent: #e8ff47;
     --accent-dim: #c8df30;
-    --accent-subtle: rgba(232,255,71,0.1);
+    --accent-subtle: rgba(232, 255, 71, 0.1);
     --red: #ff4f4f;
     --green: #4fdf7c;
     --blue: #4fa8ff;
     --orange: #ff8c42;
+  }
+
+  html.light {
+    --bg: #f2f2f7;
+    --surface: #ffffff;
+    --surface2: #f5f5f8;
+    --surface3: #e5e5ea;
+    --border: #dededf;
+    --border2: #c7c7cc;
+    --text: #1c1c1e;
+    --text-sub: #636366;
+    --text-muted: #8e8e93;
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -39,9 +53,61 @@
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
 
 /* Number input: hide spinners */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
 input[type=number] { -moz-appearance: textfield; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Light-theme overrides for hardcoded Tailwind arbitrary-value classes
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Backgrounds — darkest to lightest */
+html.light [class~="bg-[#000]"],
+html.light [class~="bg-[#0a0a0a]"],
+html.light [class~="bg-[#0f0f0f]"],
+html.light [class~="bg-[#0e0e0e]"] { background-color: var(--bg) !important; }
+
+html.light [class~="bg-[#111]"],
+html.light [class~="bg-[#141414]"] { background-color: var(--surface) !important; }
+
+html.light [class~="bg-[#161616]"],
+html.light [class~="bg-[#1a1a1a]"],
+html.light [class~="bg-[#1c1c1e]"] { background-color: var(--surface2) !important; }
+
+html.light [class~="bg-[#1e1e1e]"] { background-color: var(--surface3) !important; }
+
+html.light [class~="bg-[#222]"],
+html.light [class~="bg-[#2a2a2a]"],
+html.light [class~="bg-[#2e2e2e]"] { background-color: var(--border2) !important; }
+
+/* Semi-transparent backgrounds */
+html.light [class~="bg-[#0a0a0a]/95"],
+html.light [class~="bg-[#0e0e0e]/95"] { background-color: rgba(255, 255, 255, 0.95) !important; }
+
+/* Borders */
+html.light [class~="border-[#1e1e1e]"] { border-color: var(--border) !important; }
+html.light [class~="border-[#2a2a2a]"],
+html.light [class~="border-[#2e2e2e]"] { border-color: var(--border2) !important; }
+
+/* Text */
+html.light .text-white { color: var(--text) !important; }
+
+html.light [class~="text-[#aaa]"],
+html.light [class~="text-[#777]"],
+html.light [class~="text-[#666]"] { color: var(--text-sub) !important; }
+
+html.light [class~="text-[#555]"] { color: var(--text-muted) !important; }
+
+html.light [class~="text-[#444]"],
+html.light [class~="text-[#383838]"],
+html.light [class~="text-[#333]"] { color: var(--border2) !important; }
+
+/* Placeholder text */
+html.light [class~="placeholder:text-[#333]"]::placeholder,
+html.light [class~="placeholder:text-[#444]"]::placeholder { color: var(--border2) !important; }
+
+/* Focus borders */
+html.light [class~="focus:border-[#e8ff47]/50"]:focus { border-color: rgba(232, 255, 71, 0.5) !important; }
