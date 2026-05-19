@@ -171,14 +171,14 @@ function SetRow({ setNum, weight, reps, onChange, onRemove, onToggleLock, locked
       <input
         type="number" value={weight} onChange={e => onChange('weight', e.target.value)}
         placeholder="0" inputMode="decimal"
-        className="flex-1 h-10 bg-transparent text-white text-center text-lg font-semibold focus:outline-none placeholder:text-[#333]"
+        className="flex-1 min-w-0 h-10 bg-transparent text-white text-center text-lg font-semibold focus:outline-none placeholder:text-[#333]"
       />
       <span className="text-[#333] text-xs shrink-0">{unit}</span>
       <div className="w-px h-5 bg-[#222] shrink-0" />
       <input
         type="number" value={reps} onChange={e => onChange('reps', e.target.value)}
         placeholder="0" inputMode="numeric"
-        className="flex-1 h-10 bg-transparent text-white text-center text-lg font-semibold focus:outline-none placeholder:text-[#333]"
+        className="flex-1 min-w-0 h-10 bg-transparent text-white text-center text-lg font-semibold focus:outline-none placeholder:text-[#333]"
       />
       <button onClick={onToggleLock}
         className="w-8 h-8 flex items-center justify-center rounded-full bg-[#4fdf7c]/10 text-[#4fdf7c] hover:bg-[#4fdf7c]/20 transition-colors shrink-0">
