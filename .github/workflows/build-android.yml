@@ -37,7 +37,7 @@ jobs:
         run: npx cap add android
 
       - name: Set minSdkVersion to 26 for Health Connect
-        run: sed -i 's/minSdkVersion = 24/minSdkVersion = 26/' android/variables.gradle
+        run: sed -i 's/minSdkVersion = [0-9]*/minSdkVersion = 26/' android/variables.gradle
 
       - name: Patch AndroidManifest — Health Connect + deep link scheme
         run: |
