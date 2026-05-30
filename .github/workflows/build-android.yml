@@ -43,18 +43,15 @@ jobs:
         run: |
           sed -i 's|</manifest>|    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />\n    <uses-permission android:name="android.permission.health.READ_EXERCISE" />\n    <queries>\n        <package android:name="com.google.android.apps.healthdata" />\n    </queries>\n</manifest>|' android/app/src/main/AndroidManifest.xml
 
-      - name: Force Kotlin JVM target to 17 for plugin compatibility
+      - name: Patch kiwi-health plugin to pin Kotlin JVM target to 17
         run: |
-          cat >> android/build.gradle << 'EOF'
-
-          subprojects {
-              afterEvaluate {
-                  tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                      kotlinOptions { jvmTarget = "17" }
-                  }
-              }
-          }
-          EOF
+          python3 << 'PYEOF'
+          path = 'node_modules/@kiwi-health/capacitor-health-connect/android/build.gradle'
+          content = open(path).read()
+          old = '    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }'
+          new = old + '\n    kotlinOptions {\n        jvmTarget = "17"\n    }'
+          open(path, 'w').write(content.replace(old, new, 1))
+          PYEOF
 
       - name: Sync Capacitor plugins
         run: npx cap sync android
