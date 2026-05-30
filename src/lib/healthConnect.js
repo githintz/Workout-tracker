@@ -41,11 +41,11 @@ export async function requestPermissions() {
   const hc = getPlugin()
   if (!hc) return false
   try {
-    const result = await hc.requestHealthPermissions({
+    const result = await withTimeout(hc.requestHealthPermissions({
       read: ['ExerciseSession'],
       write: ['ExerciseSession'],
-    })
-    return result.hasAllPermissions
+    }), 60000) // 60s — user may take time in the permissions dialog
+    return result?.hasAllPermissions ?? false
   } catch {
     return false
   }
