@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card'
 import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
+import { Capacitor } from '@capacitor/core'
 import {
   checkAvailability,
   hasPermissions,
@@ -148,33 +149,33 @@ export default function HomePage() {
         </div>
       </Card>
 
-      {/* Health Connect card */}
-      {hcStatus && hcStatus !== 'NotSupported' && (
+      {/* Health Connect card — Android only */}
+      {Capacitor.isNativePlatform() && (
         <Card className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <span className="text-2xl">❤️</span>
             <div className="flex-1 min-w-0">
               <p className="text-white font-semibold text-sm">Health Connect</p>
               <p className="text-[#555] text-xs">
-                {hcConnected
-                  ? 'Connected — new workouts sync automatically'
-                  : hcStatus === 'NotInstalled'
-                  ? 'Install Health Connect to enable sync'
+                {hcStatus === null          ? 'Checking availability…'
+                  : hcConnected             ? 'Connected — new workouts sync automatically'
+                  : hcStatus === 'NotInstalled' ? 'Install Health Connect to enable sync'
+                  : hcStatus === 'NotSupported' ? 'Not supported on this device'
                   : 'Sync workouts to Google Health'}
               </p>
             </div>
             {hcConnected && <span className="w-2 h-2 rounded-full bg-[#4fdf7c] shrink-0" />}
           </div>
 
-          {hcStatus === 'NotInstalled' ? (
-            <Button size="sm" variant="secondary" onClick={openSettings}>
-              Open Health Connect
-            </Button>
-          ) : !hcConnected ? (
+          {hcStatus === 'NotInstalled' && (
+            <Button size="sm" variant="secondary" onClick={openSettings}>Open Health Connect</Button>
+          )}
+          {hcStatus === 'Available' && !hcConnected && (
             <Button size="sm" onClick={connectHealthConnect} disabled={hcLoading}>
               {hcLoading ? 'Connecting…' : 'Connect to Health Connect'}
             </Button>
-          ) : (
+          )}
+          {hcStatus === 'Available' && hcConnected && (
             <Button size="sm" variant="secondary" onClick={syncPastData} disabled={hcSyncing}>
               {hcSyncing ? 'Syncing…' : 'Sync all past data'}
             </Button>

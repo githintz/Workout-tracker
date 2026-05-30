@@ -99,8 +99,11 @@ export function Layout({ children }) {
 
   return (
     <div className="flex flex-col min-h-dvh max-w-2xl mx-auto w-full">
-      {/* Top bar */}
-      <header className="flex items-center justify-between px-5 h-14 shrink-0 border-b border-[#1e1e1e] sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-xl z-30">
+      {/* Top bar — padding-top pushes content below the Android status bar */}
+      <header
+        className="flex items-center justify-between px-5 shrink-0 border-b border-[#1e1e1e] sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-xl z-30"
+        style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(3.5rem + env(safe-area-inset-top))' }}
+      >
         <span className="text-[#e8ff47] font-black text-xl tracking-tight">LIFT</span>
         <span className="text-[#555] text-xs font-medium">{currentPage}</span>
         <button
