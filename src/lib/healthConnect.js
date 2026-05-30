@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import { HealthConnect as _hc } from '@kiwi-health/capacitor-health-connect'
 
 function withTimeout(promise, ms = 5000) {
   return Promise.race([
@@ -25,35 +26,19 @@ const CARDIO_TYPE_MAP = {
   other: EXERCISE_TYPE.OTHER,
 }
 
-let _plugin = null
-
-async function getPlugin() {
-  if (!Capacitor.isNativePlatform()) { console.log('[HC] not native platform'); return null }
-  if (_plugin) return _plugin
-  console.log('[HC] importing plugin…')
-  try {
-    const mod = await withTimeout(import('@kiwi-health/capacitor-health-connect'), 4000)
-    console.log('[HC] plugin imported', mod)
-    _plugin = mod.HealthConnect
-    return _plugin
-  } catch (e) {
-    console.log('[HC] plugin import failed', e)
-    return null
-  }
+function getPlugin() {
+  return Capacitor.isNativePlatform() ? _hc : null
 }
 
-export async function checkAvailability() {
-  // Skip the native checkAvailability() call — it blocks the bridge indefinitely
-  // on some devices (likely a slow IPC call to the Health Connect service).
-  // On Android native we can safely assume Health Connect is present; the
-  // permission-request flow will surface any real unavailability.
-  const hc = await getPlugin()
-  if (!hc) return 'NotSupported'
-  return 'Available'
+export function checkAvailability() {
+  // On native Android (minSdk 26+) Health Connect is always present.
+  // Calling the native checkAvailability() method blocks the bridge on some
+  // devices, so we skip it and determine availability from the platform check.
+  return Promise.resolve(Capacitor.isNativePlatform() ? 'Available' : 'NotSupported')
 }
 
 export async function requestPermissions() {
-  const hc = await getPlugin()
+  const hc = getPlugin()
   if (!hc) return false
   try {
     const result = await hc.requestHealthPermissions({
@@ -67,27 +52,27 @@ export async function requestPermissions() {
 }
 
 export async function hasPermissions() {
-  const hc = await getPlugin()
+  const hc = getPlugin()
   if (!hc) return false
   try {
     const result = await withTimeout(hc.checkHealthPermissions({
       read: ['ExerciseSession'],
       write: ['ExerciseSession'],
     }), 5000)
-    return result.hasAllPermissions
+    return result?.hasAllPermissions ?? false
   } catch {
     return false
   }
 }
 
 export async function openSettings() {
-  const hc = await getPlugin()
+  const hc = getPlugin()
   if (!hc) return
   try { await hc.openHealthConnectSetting() } catch {}
 }
 
 export async function writeWorkoutSession(session) {
-  const hc = await getPlugin()
+  const hc = getPlugin()
   if (!hc || !session?.started_at || !session?.ended_at) return false
   try {
     await hc.insertRecords({
@@ -107,7 +92,7 @@ export async function writeWorkoutSession(session) {
 }
 
 export async function writeCardioSession(session) {
-  const hc = await getPlugin()
+  const hc = getPlugin()
   if (!hc) return false
   try {
     const startTime = new Date(`${session.date}T00:00:00`)
@@ -153,7 +138,7 @@ function addSynced(ids) {
 }
 
 export async function syncAllSessions(supabase, userId) {
-  const hc = await getPlugin()
+  const hc = getPlugin()
   if (!hc) return { synced: 0, failed: 0 }
 
   const already = getSyncedSet()
