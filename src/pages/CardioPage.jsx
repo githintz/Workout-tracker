@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal'
 import { PageLoader } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { format, parseISO } from 'date-fns'
+import { writeCardioSession } from '../lib/healthConnect'
 
 const TYPE_ICONS = { run: '🏃', hiit: '⚡', cycle: '🚴', walk: '🚶', other: '🏋️' }
 const TYPE_LABELS = { run: 'Run', hiit: 'HIIT', cycle: 'Cycle', walk: 'Walk', other: 'Other' }
@@ -82,6 +83,8 @@ export default function CardioPage() {
         reps: parseInt(hiitReps) || null,
       })
     }
+
+    if (cardio) writeCardioSession(cardio).catch(() => {})
 
     setSaving(false)
     resetForm()

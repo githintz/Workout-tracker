@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal'
 import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { format, parseISO } from 'date-fns'
+import { writeWorkoutSession } from '../lib/healthConnect'
 
 // ─── beep via Web Audio ────────────────────────────────────────────────────────
 function playBeep() {
@@ -535,6 +536,12 @@ export default function TrackPage() {
         ended_at: endTime.toISOString(),
         duration_seconds: duration,
       }).eq('id', session.id)
+
+      writeWorkoutSession({
+        started_at: startTime.toISOString(),
+        ended_at: endTime.toISOString(),
+        day_title: selectedDay?.title,
+      }).catch(() => {})
     }
 
     // Save sets
