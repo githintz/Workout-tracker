@@ -62,10 +62,17 @@ export default function HomePage() {
   }, [user])
 
   async function initHealthConnect() {
-    const status = await checkAvailability()
-    setHcStatus(status)
-    if (status === 'Available') {
-      setHcConnected(await hasPermissions())
+    const fallback = setTimeout(() => setHcStatus('NotSupported'), 6000)
+    try {
+      const status = await checkAvailability()
+      clearTimeout(fallback)
+      setHcStatus(status)
+      if (status === 'Available') {
+        setHcConnected(await hasPermissions())
+      }
+    } catch {
+      clearTimeout(fallback)
+      setHcStatus('NotSupported')
     }
   }
 

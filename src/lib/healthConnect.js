@@ -31,8 +31,8 @@ async function getPlugin() {
   if (!Capacitor.isNativePlatform()) return null
   if (_plugin) return _plugin
   try {
-    const { HealthConnect } = await import('@kiwi-health/capacitor-health-connect')
-    _plugin = HealthConnect
+    const mod = await withTimeout(import('@kiwi-health/capacitor-health-connect'), 4000)
+    _plugin = mod.HealthConnect
     return _plugin
   } catch {
     return null
