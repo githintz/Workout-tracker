@@ -1,5 +1,12 @@
 import { Capacitor } from '@capacitor/core'
 
+function withTimeout(promise, ms = 5000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
+
 // Android Health Connect exercise type integer constants
 const EXERCISE_TYPE = {
   OTHER:    0,
@@ -36,7 +43,7 @@ export async function checkAvailability() {
   const hc = await getPlugin()
   if (!hc) return 'NotSupported'
   try {
-    const { availability } = await hc.checkAvailability()
+    const { availability } = await withTimeout(hc.checkAvailability())
     return availability
   } catch {
     return 'NotSupported'
