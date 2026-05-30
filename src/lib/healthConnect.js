@@ -82,7 +82,7 @@ export async function writeWorkoutSession(session) {
         endTime: new Date(session.ended_at),
         exerciseType: EXERCISE_TYPE.STRENGTH,
         title: session.day_title || 'Workout',
-        ...(session.notes ? { notes: session.notes } : {}),
+        notes: session.notes || '',
       }],
     })
     return true
@@ -106,7 +106,7 @@ export async function writeCardioSession(session) {
       endTime,
       exerciseType: CARDIO_TYPE_MAP[session.type] ?? EXERCISE_TYPE.OTHER,
       title: session.type.charAt(0).toUpperCase() + session.type.slice(1),
-      ...(session.notes ? { notes: session.notes } : {}),
+      notes: session.notes || '',
     }]
 
     if (session.distance_km) {
@@ -160,6 +160,7 @@ export async function syncAllSessions(supabase, userId) {
         endTime: new Date(s.ended_at),
         exerciseType: EXERCISE_TYPE.STRENGTH,
         title: s.day_title || 'Workout',
+        notes: s.notes || '',
       }],
     })
   }
@@ -177,6 +178,7 @@ export async function syncAllSessions(supabase, userId) {
       endTime,
       exerciseType: CARDIO_TYPE_MAP[s.type] ?? EXERCISE_TYPE.OTHER,
       title: s.type.charAt(0).toUpperCase() + s.type.slice(1),
+      notes: s.notes || '',
     }]
     if (s.distance_km) {
       records.push({ type: 'Distance', startTime, endTime, distance: { unit: 'kilometer', value: s.distance_km } })
