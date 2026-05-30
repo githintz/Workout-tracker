@@ -28,24 +28,31 @@ const CARDIO_TYPE_MAP = {
 let _plugin = null
 
 async function getPlugin() {
-  if (!Capacitor.isNativePlatform()) return null
+  if (!Capacitor.isNativePlatform()) { console.log('[HC] not native platform'); return null }
   if (_plugin) return _plugin
+  console.log('[HC] importing plugin…')
   try {
     const mod = await withTimeout(import('@kiwi-health/capacitor-health-connect'), 4000)
+    console.log('[HC] plugin imported', mod)
     _plugin = mod.HealthConnect
     return _plugin
-  } catch {
+  } catch (e) {
+    console.log('[HC] plugin import failed', e)
     return null
   }
 }
 
 export async function checkAvailability() {
+  console.log('[HC] checkAvailability start')
   const hc = await getPlugin()
-  if (!hc) return 'NotSupported'
+  if (!hc) { console.log('[HC] no plugin, returning NotSupported'); return 'NotSupported' }
+  console.log('[HC] calling hc.checkAvailability()…')
   try {
     const { availability } = await withTimeout(hc.checkAvailability())
+    console.log('[HC] availability:', availability)
     return availability
-  } catch {
+  } catch (e) {
+    console.log('[HC] checkAvailability threw/timed out', e)
     return 'NotSupported'
   }
 }
