@@ -39,9 +39,13 @@ jobs:
       - name: Set minSdkVersion to 26 for Health Connect
         run: sed -i 's/minSdkVersion = 24/minSdkVersion = 26/' android/variables.gradle
 
-      - name: Add Health Connect permissions to manifest
+      - name: Patch AndroidManifest — Health Connect + deep link scheme
         run: |
-          sed -i 's|</manifest>|    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />\n    <uses-permission android:name="android.permission.health.READ_EXERCISE" />\n    <queries>\n        <package android:name="com.google.android.apps.healthdata" />\n    </queries>\n</manifest>|' android/app/src/main/AndroidManifest.xml
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          # Health Connect permissions
+          sed -i 's|</manifest>|    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />\n    <uses-permission android:name="android.permission.health.READ_EXERCISE" />\n    <queries>\n        <package android:name="com.google.android.apps.healthdata" />\n    </queries>\n</manifest>|' "$MANIFEST"
+          # Deep link intent filter for magic link callback
+          sed -i 's|</activity>|        <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="com.lift.workouttracker" />\n            </intent-filter>\n        </activity>|' "$MANIFEST"
 
       - name: Patch kiwi-health plugin to pin Kotlin JVM target to 17
         run: |
