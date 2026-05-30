@@ -39,28 +39,30 @@ jobs:
       - name: Set minSdkVersion to 26 for Health Connect
         run: sed -i 's/minSdkVersion = [0-9]*/minSdkVersion = 26/' android/variables.gradle
 
-      - name: Patch AndroidManifest — Health Connect + deep link scheme
+      - name: Patch AndroidManifest - Health Connect + deep link scheme
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
-          # Health Connect permissions
           sed -i 's|</manifest>|    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />\n    <uses-permission android:name="android.permission.health.READ_EXERCISE" />\n    <queries>\n        <package android:name="com.google.android.apps.healthdata" />\n    </queries>\n</manifest>|' "$MANIFEST"
-          # Deep link intent filter for magic link callback
           sed -i 's|</activity>|        <intent-filter>\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="com.lift.workouttracker" />\n            </intent-filter>\n        </activity>|' "$MANIFEST"
-          # Health Connect privacy rationale activity-alias (required on Android 13+)
+
+      - name: Patch AndroidManifest - add Health Connect activity-alias
+        run: |
           python3 << 'PYEOF'
           path = 'android/app/src/main/AndroidManifest.xml'
           content = open(path).read()
-          alias = '''        <activity-alias
-                android:name=".ViewPermissionUsageActivity"
-                android:exported="true"
-                android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
-                android:targetActivity="com.lift.workouttracker.MainActivity">
-                <intent-filter>
-                    <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
-                    <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
-                </intent-filter>
-            </activity-alias>
-        </application>'''
+          alias = (
+              '        <activity-alias\n'
+              '            android:name=".ViewPermissionUsageActivity"\n'
+              '            android:exported="true"\n'
+              '            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"\n'
+              '            android:targetActivity="com.lift.workouttracker.MainActivity">\n'
+              '            <intent-filter>\n'
+              '                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>\n'
+              '                <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>\n'
+              '            </intent-filter>\n'
+              '        </activity-alias>\n'
+              '    </application>'
+          )
           open(path, 'w').write(content.replace('</application>', alias, 1))
           PYEOF
 
