@@ -43,18 +43,13 @@ async function getPlugin() {
 }
 
 export async function checkAvailability() {
-  console.log('[HC] checkAvailability start')
+  // Skip the native checkAvailability() call — it blocks the bridge indefinitely
+  // on some devices (likely a slow IPC call to the Health Connect service).
+  // On Android native we can safely assume Health Connect is present; the
+  // permission-request flow will surface any real unavailability.
   const hc = await getPlugin()
-  if (!hc) { console.log('[HC] no plugin, returning NotSupported'); return 'NotSupported' }
-  console.log('[HC] calling hc.checkAvailability()…')
-  try {
-    const { availability } = await withTimeout(hc.checkAvailability())
-    console.log('[HC] availability:', availability)
-    return availability
-  } catch (e) {
-    console.log('[HC] checkAvailability threw/timed out', e)
-    return 'NotSupported'
-  }
+  if (!hc) return 'NotSupported'
+  return 'Available'
 }
 
 export async function requestPermissions() {
@@ -75,10 +70,10 @@ export async function hasPermissions() {
   const hc = await getPlugin()
   if (!hc) return false
   try {
-    const result = await hc.checkHealthPermissions({
+    const result = await withTimeout(hc.checkHealthPermissions({
       read: ['ExerciseSession'],
       write: ['ExerciseSession'],
-    })
+    }), 5000)
     return result.hasAllPermissions
   } catch {
     return false

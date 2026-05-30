@@ -54,7 +54,6 @@ export default function HomePage() {
   const [hcLoading, setHcLoading]     = useState(false)
   const [hcSyncing, setHcSyncing]     = useState(false)
   const [hcMessage, setHcMessage]     = useState('')
-  const [hcDebug, setHcDebug]         = useState('init')
 
   useEffect(() => {
     if (!user) return
@@ -63,20 +62,13 @@ export default function HomePage() {
   }, [user])
 
   async function initHealthConnect() {
-    setHcDebug('starting…')
-    const fallback = setTimeout(() => { setHcStatus('NotSupported'); setHcDebug('fallback-timeout') }, 6000)
     try {
-      setHcDebug('calling checkAvailability…')
       const status = await checkAvailability()
-      clearTimeout(fallback)
-      setHcDebug(`got: ${status}`)
       setHcStatus(status)
       if (status === 'Available') {
         setHcConnected(await hasPermissions())
       }
-    } catch (e) {
-      clearTimeout(fallback)
-      setHcDebug(`error: ${e?.message}`)
+    } catch {
       setHcStatus('NotSupported')
     }
   }
@@ -194,7 +186,6 @@ export default function HomePage() {
           )}
 
           {hcMessage && <p className="text-[#4fdf7c] text-xs">{hcMessage}</p>}
-          <p className="text-[#333] text-[10px] font-mono">dbg: {hcDebug}</p>
         </Card>
       )}
 
