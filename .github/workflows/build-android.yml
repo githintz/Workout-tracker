@@ -76,6 +76,22 @@ jobs:
           open(path, 'w').write(content.replace(old, new, 1))
           PYEOF
 
+      - name: Patch kiwi-health plugin to catch coroutine exceptions
+        run: |
+          python3 << 'PYEOF'
+          path = 'node_modules/@kiwi-health/capacitor-health-connect/android/src/main/java/com/ubiehealth/capacitor/healthconnect/HealthConnectPlugin.kt'
+          content = open(path).read()
+          content = content.replace(
+              'import kotlinx.coroutines.launch',
+              'import kotlinx.coroutines.CoroutineExceptionHandler\nimport kotlinx.coroutines.launch'
+          )
+          content = content.replace(
+              'this.activity.lifecycleScope.launch {',
+              'this.activity.lifecycleScope.launch(CoroutineExceptionHandler { _, e -> call.reject(e.message ?: "HealthConnect error") }) {'
+          )
+          open(path, 'w').write(content)
+          PYEOF
+
       - name: Sync Capacitor plugins
         run: npx cap sync android
 
