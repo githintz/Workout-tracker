@@ -9,7 +9,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Capacitor } from '@capacitor/core'
-import { readStepsHistory } from '../lib/healthConnect'
+import { readStepsHistory, hasPermissions } from '../lib/healthConnect'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -969,7 +969,9 @@ export default function AnalyticsPage() {
     })
 
     if (Capacitor.isNativePlatform()) {
-      readStepsHistory(30).then(h => setStepsHistory(h || {}))
+      hasPermissions().then(granted => {
+        if (granted) readStepsHistory(30).then(h => setStepsHistory(h || {}))
+      })
     }
   }, [user])
 

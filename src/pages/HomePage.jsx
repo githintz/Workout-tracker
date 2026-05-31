@@ -9,7 +9,7 @@ import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { Capacitor } from '@capacitor/core'
-import { readStepsToday } from '../lib/healthConnect'
+import { readStepsToday, hasPermissions } from '../lib/healthConnect'
 
 function WeeklyRing({ done, target }) {
   const pct = target > 0 ? Math.min(done / target, 1) : 0
@@ -48,7 +48,9 @@ export default function HomePage() {
     if (!user) return
     loadData()
     if (Capacitor.isNativePlatform()) {
-      readStepsToday().then(s => setStepsToday(s))
+      hasPermissions().then(granted => {
+        if (granted) readStepsToday().then(s => setStepsToday(s))
+      })
     }
   }, [user])
 
