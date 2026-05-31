@@ -8,7 +8,6 @@ function withTimeout(promise, ms = 5000) {
   ])
 }
 
-// Android Health Connect exercise type integer constants
 const EXERCISE_TYPE = {
   OTHER:    0,
   BIKING:   8,
@@ -31,9 +30,6 @@ function getPlugin() {
 }
 
 export function checkAvailability() {
-  // On native Android (minSdk 26+) Health Connect is always present.
-  // Calling the native checkAvailability() method blocks the bridge on some
-  // devices, so we skip it and determine availability from the platform check.
   return Promise.resolve(Capacitor.isNativePlatform() ? 'Available' : 'NotSupported')
 }
 
@@ -42,9 +38,9 @@ export async function requestPermissions() {
   if (!hc) return false
   try {
     const result = await withTimeout(hc.requestHealthPermissions({
-      read: ['ExerciseSession'],
+      read: ['ExerciseSession', 'Steps'],
       write: ['ExerciseSession'],
-    }), 60000) // 60s — user may take time in the permissions dialog
+    }), 60000)
     return result?.hasAllPermissions ?? false
   } catch {
     return false
@@ -56,7 +52,7 @@ export async function hasPermissions() {
   if (!hc) return false
   try {
     const result = await withTimeout(hc.checkHealthPermissions({
-      read: ['ExerciseSession'],
+      read: ['ExerciseSession', 'Steps'],
       write: ['ExerciseSession'],
     }), 5000)
     return result?.hasAllPermissions ?? false
@@ -69,6 +65,45 @@ export async function openSettings() {
   const hc = getPlugin()
   if (!hc) return
   try { await hc.openHealthConnectSetting() } catch {}
+}
+
+export async function readStepsToday() {
+  const hc = getPlugin()
+  if (!hc) return null
+  try {
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const result = await withTimeout(hc.readRecords({
+      type: 'Steps',
+      timeRangeFilter: { startTime: start.toISOString(), endTime: new Date().toISOString() },
+    }), 5000)
+    return (result?.records || []).reduce((sum, r) => sum + (r.count || 0), 0)
+  } catch {
+    return null
+  }
+}
+
+export async function readStepsHistory(days = 30) {
+  const hc = getPlugin()
+  if (!hc) return {}
+  try {
+    const end = new Date()
+    const start = new Date()
+    start.setDate(start.getDate() - days)
+    start.setHours(0, 0, 0, 0)
+    const result = await withTimeout(hc.readRecords({
+      type: 'Steps',
+      timeRangeFilter: { startTime: start.toISOString(), endTime: end.toISOString() },
+    }), 10000)
+    const byDate = {}
+    for (const r of result?.records || []) {
+      const date = new Date(r.startTime).toISOString().split('T')[0]
+      byDate[date] = (byDate[date] || 0) + (r.count || 0)
+    }
+    return byDate
+  } catch {
+    return {}
+  }
 }
 
 export async function writeWorkoutSession(session) {

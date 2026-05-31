@@ -9,13 +9,7 @@ import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { Capacitor } from '@capacitor/core'
-import {
-  checkAvailability,
-  hasPermissions,
-  requestPermissions,
-  openSettings,
-  syncAllSessions,
-} from '../lib/healthConnect'
+import { readStepsToday } from '../lib/healthConnect'
 
 function WeeklyRing({ done, target }) {
   const pct = target > 0 ? Math.min(done / target, 1) : 0
@@ -48,51 +42,15 @@ export default function HomePage() {
   const [weekSessions, setWeekSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [todaySession, setTodaySession] = useState(null)
-
-  const [hcStatus, setHcStatus]       = useState(null)
-  const [hcConnected, setHcConnected] = useState(false)
-  const [hcLoading, setHcLoading]     = useState(false)
-  const [hcSyncing, setHcSyncing]     = useState(false)
-  const [hcMessage, setHcMessage]     = useState('')
+  const [stepsToday, setStepsToday] = useState(null)
 
   useEffect(() => {
     if (!user) return
     loadData()
-    initHealthConnect()
+    if (Capacitor.isNativePlatform()) {
+      readStepsToday().then(s => setStepsToday(s))
+    }
   }, [user])
-
-  async function initHealthConnect() {
-    try {
-      const status = await checkAvailability()
-      setHcStatus(status)
-      if (status === 'Available') {
-        setHcConnected(await hasPermissions())
-      }
-    } catch {
-      setHcStatus('NotSupported')
-    }
-  }
-
-  async function connectHealthConnect() {
-    setHcLoading(true)
-    setHcMessage('')
-    const granted = await requestPermissions()
-    setHcConnected(granted)
-    setHcMessage(granted ? 'Connected! New workouts will sync automatically.' : 'Permission was not granted.')
-    setHcLoading(false)
-  }
-
-  async function syncPastData() {
-    setHcSyncing(true)
-    setHcMessage('')
-    const { synced, failed } = await syncAllSessions(supabase, user.id)
-    if (synced === 0 && failed === 0) {
-      setHcMessage('Everything is already synced.')
-    } else {
-      setHcMessage(`Synced ${synced} session${synced !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}.`)
-    }
-    setHcSyncing(false)
-  }
 
   async function loadData() {
     setLoading(true)
@@ -153,39 +111,14 @@ export default function HomePage() {
         </div>
       </Card>
 
-      {/* Health Connect card — Android only */}
-      {Capacitor.isNativePlatform() && (
-        <Card className="flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">❤️</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-semibold text-sm">Health Connect</p>
-              <p className="text-[#555] text-xs">
-                {hcStatus === null          ? 'Checking availability…'
-                  : hcConnected             ? 'Connected — new workouts sync automatically'
-                  : hcStatus === 'NotInstalled' ? 'Install Health Connect to enable sync'
-                  : hcStatus === 'NotSupported' ? 'Not supported on this device'
-                  : 'Sync workouts to Google Health'}
-              </p>
-            </div>
-            {hcConnected && <span className="w-2 h-2 rounded-full bg-[#4fdf7c] shrink-0" />}
+      {/* Steps today — Android only */}
+      {Capacitor.isNativePlatform() && stepsToday !== null && (
+        <Card className="flex items-center gap-4">
+          <span className="text-2xl">👟</span>
+          <div className="flex-1">
+            <p className="text-[#777] text-xs font-medium uppercase tracking-wider mb-0.5">Steps Today</p>
+            <p className="text-white font-bold text-xl">{stepsToday.toLocaleString()}</p>
           </div>
-
-          {hcStatus === 'NotInstalled' && (
-            <Button size="sm" variant="secondary" onClick={openSettings}>Open Health Connect</Button>
-          )}
-          {hcStatus === 'Available' && !hcConnected && (
-            <Button size="sm" onClick={connectHealthConnect} disabled={hcLoading}>
-              {hcLoading ? 'Connecting…' : 'Connect to Health Connect'}
-            </Button>
-          )}
-          {hcStatus === 'Available' && hcConnected && (
-            <Button size="sm" variant="secondary" onClick={syncPastData} disabled={hcSyncing}>
-              {hcSyncing ? 'Syncing…' : 'Sync all past data'}
-            </Button>
-          )}
-
-          {hcMessage && <p className="text-[#4fdf7c] text-xs">{hcMessage}</p>}
         </Card>
       )}
 

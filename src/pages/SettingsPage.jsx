@@ -1,8 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useSettings } from '../contexts/SettingsContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Capacitor } from '@capacitor/core'
+import {
+  checkAvailability,
+  hasPermissions,
+  requestPermissions,
+  openSettings as openHcSettings,
+  syncAllSessions,
+} from '../lib/healthConnect'
+import { supabase } from '../lib/supabase'
 
 const REST_PRESETS = [30, 60, 90, 120, 180, 240]
 
@@ -11,6 +20,20 @@ export default function SettingsPage() {
   const { settings, update } = useSettings()
   const [signingOut, setSigningOut] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('lift_theme') || 'dark')
+
+  const [hcStatus, setHcStatus]       = useState(null)
+  const [hcConnected, setHcConnected] = useState(false)
+  const [hcLoading, setHcLoading]     = useState(false)
+  const [hcSyncing, setHcSyncing]     = useState(false)
+  const [hcMessage, setHcMessage]     = useState('')
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    checkAvailability().then(status => {
+      setHcStatus(status)
+      if (status === 'Available') hasPermissions().then(setHcConnected)
+    })
+  }, [])
 
   const handleSignOut = async () => {
     setSigningOut(true)
@@ -25,6 +48,27 @@ export default function SettingsPage() {
     localStorage.setItem('lift_theme', next)
     if (next === 'light') document.documentElement.classList.add('light')
     else document.documentElement.classList.remove('light')
+  }
+
+  async function connectHealthConnect() {
+    setHcLoading(true)
+    setHcMessage('')
+    const granted = await requestPermissions()
+    setHcConnected(granted)
+    setHcMessage(granted ? 'Connected! New workouts will sync automatically.' : 'Permission was not granted.')
+    setHcLoading(false)
+  }
+
+  async function syncPastData() {
+    setHcSyncing(true)
+    setHcMessage('')
+    const { synced, failed } = await syncAllSessions(supabase, user.id)
+    if (synced === 0 && failed === 0) {
+      setHcMessage('Everything is already synced.')
+    } else {
+      setHcMessage(`Synced ${synced} session${synced !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}.`)
+    }
+    setHcSyncing(false)
   }
 
   return (
@@ -110,6 +154,42 @@ export default function SettingsPage() {
           ))}
         </div>
       </Card>
+
+      {/* Health Connect — Android only */}
+      {Capacitor.isNativePlatform() && (
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">❤️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-semibold text-sm">Health Connect</p>
+              <p className="text-[#555] text-xs">
+                {hcStatus === null            ? 'Checking…'
+                  : hcConnected              ? 'Connected — workouts & steps sync automatically'
+                  : hcStatus === 'NotInstalled' ? 'Install Health Connect to enable sync'
+                  : hcStatus === 'NotSupported' ? 'Not supported on this device'
+                  : 'Sync workouts and steps to Google Health'}
+              </p>
+            </div>
+            {hcConnected && <span className="w-2 h-2 rounded-full bg-[#4fdf7c] shrink-0" />}
+          </div>
+
+          {hcStatus === 'NotInstalled' && (
+            <Button size="sm" variant="secondary" onClick={openHcSettings}>Open Health Connect</Button>
+          )}
+          {hcStatus === 'Available' && !hcConnected && (
+            <Button size="sm" onClick={connectHealthConnect} disabled={hcLoading}>
+              {hcLoading ? 'Connecting…' : 'Connect to Health Connect'}
+            </Button>
+          )}
+          {hcStatus === 'Available' && hcConnected && (
+            <Button size="sm" variant="secondary" onClick={syncPastData} disabled={hcSyncing}>
+              {hcSyncing ? 'Syncing…' : 'Sync all past data'}
+            </Button>
+          )}
+
+          {hcMessage && <p className="text-[#4fdf7c] text-xs">{hcMessage}</p>}
+        </Card>
+      )}
 
       {/* Account */}
       <Card>
