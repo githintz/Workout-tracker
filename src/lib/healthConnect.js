@@ -61,6 +61,20 @@ export async function hasPermissions() {
   }
 }
 
+export async function hasStepsPermission() {
+  const hc = getPlugin()
+  if (!hc) return false
+  try {
+    const result = await withTimeout(hc.checkHealthPermissions({
+      read: ['Steps'],
+      write: [],
+    }), 5000)
+    return result?.hasAllPermissions ?? false
+  } catch {
+    return false
+  }
+}
+
 export async function openSettings() {
   const hc = getPlugin()
   if (!hc) return
