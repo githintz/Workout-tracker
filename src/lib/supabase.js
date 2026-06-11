@@ -7,4 +7,12 @@ if (!url || !akey) {
   console.warn('Supabase env vars missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
 }
 
-export const supabase = createClient(url || '', akey || '')
+let _client
+try {
+  _client = createClient(url || 'https://placeholder.supabase.co', akey || 'placeholder')
+} catch (e) {
+  console.error('Failed to init Supabase client:', e)
+  _client = createClient('https://placeholder.supabase.co', 'placeholder')
+}
+
+export const supabase = _client
