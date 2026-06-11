@@ -9,6 +9,7 @@ import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { format, parseISO } from 'date-fns'
 import { writeWorkoutSession } from '../lib/healthConnect'
+import { getAccent } from '../lib/theme'
 
 // ─── beep via Web Audio ────────────────────────────────────────────────────────
 function playBeep() {
@@ -36,7 +37,7 @@ function RestTimerRing({ remaining, total, running, onAddTime, onToggle, onSkip 
       <div className="relative w-36 h-36">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
           <circle cx="60" cy="60" r="52" fill="none" stroke="#1e1e1e" strokeWidth="8" />
-          <circle cx="60" cy="60" r="52" fill="none" stroke="#e8ff47" strokeWidth="8"
+          <circle cx="60" cy="60" r="52" fill="none" stroke={getAccent()} strokeWidth="8"
             strokeLinecap="round"
             strokeDasharray={`${2 * Math.PI * 52}`}
             strokeDashoffset={`${2 * Math.PI * 52 * (1 - pct / 100)}`}
@@ -110,7 +111,7 @@ function ExerciseHistoryModal({ name, unit, open, onClose }) {
             <div className="grid grid-cols-2 gap-3">
               {maxWeight > 0 && (
                 <div className="bg-[#1a1a1a] rounded-2xl p-3 text-center">
-                  <p className="text-[#e8ff47] text-2xl font-bold">{maxWeight}</p>
+                  <p className="text-accent text-2xl font-bold">{maxWeight}</p>
                   <p className="text-[#555] text-xs mt-0.5">{unit} best</p>
                 </div>
               )}
@@ -215,15 +216,15 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
       <div className="flex items-center gap-3">
         <div className="flex flex-col gap-0.5 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-[#e8ff47] text-xs font-bold">A</span>
-            <button onClick={() => onNameClick(A.exercise_name)} className="text-white text-sm font-medium hover:text-[#e8ff47] transition-colors text-left">{A.exercise_name}</button>
+            <span className="text-accent text-xs font-bold">A</span>
+            <button onClick={() => onNameClick(A.exercise_name)} className="text-white text-sm font-medium hover:text-accent transition-colors text-left">{A.exercise_name}</button>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[#e8ff47] text-xs font-bold">B</span>
-            <button onClick={() => onNameClick(B.exercise_name)} className="text-white text-sm font-medium hover:text-[#e8ff47] transition-colors text-left">{B.exercise_name}</button>
+            <span className="text-accent text-xs font-bold">B</span>
+            <button onClick={() => onNameClick(B.exercise_name)} className="text-white text-sm font-medium hover:text-accent transition-colors text-left">{B.exercise_name}</button>
           </div>
         </div>
-        <span className="text-[#e8ff47] text-xs font-bold bg-[#e8ff47]/10 px-2 h-5 rounded-full flex items-center">Superset</span>
+        <span className="text-accent text-xs font-bold bg-accent/10 px-2 h-5 rounded-full flex items-center">Superset</span>
       </div>
 
       {/* Previous superset */}
@@ -249,8 +250,8 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
       </div>
 
       {/* A sets */}
-      <div className="bg-[#e8ff47]/5 rounded-2xl p-2 flex flex-col gap-1.5">
-        <p className="text-[#e8ff47] text-xs font-bold px-1">A — {A.exercise_name}</p>
+      <div className="bg-accent/5 rounded-2xl p-2 flex flex-col gap-1.5">
+        <p className="text-accent text-xs font-bold px-1">A — {A.exercise_name}</p>
         {sets.map((s, i) => (
           <SetRow key={s.id} setNum={i + 1} weight={s.weightA} reps={s.repsA} unit={unit}
             locked={s.locked}
@@ -261,8 +262,8 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
       </div>
 
       {/* B sets */}
-      <div className="bg-[#e8ff47]/5 rounded-2xl p-2 flex flex-col gap-1.5">
-        <p className="text-[#e8ff47] text-xs font-bold px-1">B — {B.exercise_name}</p>
+      <div className="bg-accent/5 rounded-2xl p-2 flex flex-col gap-1.5">
+        <p className="text-accent text-xs font-bold px-1">B — {B.exercise_name}</p>
         {sets.map((s, i) => (
           <SetRow key={s.id + 'b'} setNum={i + 1} weight={s.weightB} reps={s.repsB} unit={unit}
             locked={s.locked}
@@ -289,7 +290,7 @@ function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets, onNameCli
 
   return (
     <div className="flex flex-col gap-2">
-      <button onClick={() => onNameClick(exercise.exercise_name)} className="text-white font-bold text-base text-left hover:text-[#e8ff47] transition-colors">
+      <button onClick={() => onNameClick(exercise.exercise_name)} className="text-white font-bold text-base text-left hover:text-accent transition-colors">
         {exercise.exercise_name}
       </button>
       {exercise.muscle_group && <p className="text-[#444] text-xs -mt-1">{exercise.muscle_group}</p>}
@@ -618,11 +619,11 @@ export default function TrackPage() {
         </div>
         <div className="bg-[#141414] border border-[#2e2e2e] rounded-3xl px-8 py-5 flex gap-8">
           <div className="text-center">
-            <p className="text-[#e8ff47] text-2xl font-bold">{elapsed_str()}</p>
+            <p className="text-accent text-2xl font-bold">{elapsed_str()}</p>
             <p className="text-[#555] text-xs mt-1">Duration</p>
           </div>
           <div className="text-center">
-            <p className="text-[#e8ff47] text-2xl font-bold">
+            <p className="text-accent text-2xl font-bold">
               {Object.values(sets).reduce((acc, arr) => acc + arr.length, 0)}
             </p>
             <p className="text-[#555] text-xs mt-1">Sets</p>
@@ -644,7 +645,7 @@ export default function TrackPage() {
         {/* Top bar */}
         <div className="px-4 py-3 border-b border-[#1e1e1e] flex items-center justify-between">
           <div>
-            <p className="text-[#e8ff47] font-bold text-lg tabular-nums">{elapsed_str()}</p>
+            <p className="text-accent font-bold text-lg tabular-nums">{elapsed_str()}</p>
             <p className="text-[#555] text-xs">{selectedDay?.title}</p>
           </div>
           <Button size="sm" variant="danger" onClick={finishWorkout} disabled={finishing}>
@@ -661,7 +662,7 @@ export default function TrackPage() {
             return (
               <button key={item.key} onClick={() => setActiveExIdx(i)}
                 className={`shrink-0 px-3 h-8 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
-                  activeExIdx === i ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] text-[#777] border border-[#2e2e2e]'
+                  activeExIdx === i ? 'bg-accent text-black' : 'bg-[#1e1e1e] text-[#777] border border-[#2e2e2e]'
                 }`}>{label}</button>
             )
           })}
@@ -698,13 +699,13 @@ export default function TrackPage() {
         {restRunning && !showTimer && (
           <button
             onClick={() => setShowTimer(true)}
-            className="mx-4 mb-2 bg-[#e8ff47]/10 border border-[#e8ff47]/30 rounded-2xl px-4 py-2 flex items-center justify-between"
+            className="mx-4 mb-2 bg-accent/10 border border-accent/30 rounded-2xl px-4 py-2 flex items-center justify-between"
           >
-            <span className="text-[#e8ff47] text-sm font-semibold">⏱ Rest</span>
-            <span className="text-[#e8ff47] text-lg font-bold tabular-nums">
+            <span className="text-accent text-sm font-semibold">⏱ Rest</span>
+            <span className="text-accent text-lg font-bold tabular-nums">
               {Math.floor(restRemaining/60)}:{(restRemaining%60).toString().padStart(2,'0')}
             </span>
-            <span className="text-[#e8ff47]/50 text-xs">tap to expand</span>
+            <span className="text-accent/50 text-xs">tap to expand</span>
           </button>
         )}
 
@@ -738,7 +739,7 @@ export default function TrackPage() {
                 placeholder="Exercise name…"
                 autoFocus
                 className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
-                  placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 w-full"
+                  placeholder:text-[#444] focus:outline-none focus:border-accent/50 w-full"
               />
               <Button size="lg" className="w-full" onClick={addCustomExercise} disabled={!customExName.trim()}>
                 Add to Workout
@@ -786,14 +787,14 @@ export default function TrackPage() {
             {days.map(day => (
               <button key={day.id} onClick={() => selectDay(day)}
                 className={`text-left bg-[#141414] border rounded-3xl p-4 transition-all active:scale-[0.99] ${
-                  selectedDay?.id === day.id ? 'border-[#e8ff47]/50 bg-[#e8ff47]/5' : 'border-[#2e2e2e] hover:border-[#3e3e3e]'
+                  selectedDay?.id === day.id ? 'border-accent/50 bg-accent/5' : 'border-[#2e2e2e] hover:border-[#3e3e3e]'
                 }`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[#777] text-xs mb-0.5">Day {day.day_number}</p>
                     <p className="text-white font-bold text-lg">{day.title}</p>
                   </div>
-                  {selectedDay?.id === day.id && <span className="text-[#e8ff47] text-xl">✓</span>}
+                  {selectedDay?.id === day.id && <span className="text-accent text-xl">✓</span>}
                 </div>
                 <div className="flex gap-1.5 flex-wrap mt-2">
                   {day.muscle_groups?.map(g => <MuscleChip key={g} group={g} />)}
@@ -814,7 +815,7 @@ export default function TrackPage() {
                       const pair = exercises.filter(e => e.superset_group === ex.superset_group)
                       gl.push(
                         <div key={ex.superset_group} className="flex items-center gap-2">
-                          <span className="text-[#e8ff47] text-xs font-bold bg-[#e8ff47]/10 px-1.5 h-5 rounded flex items-center">SS</span>
+                          <span className="text-accent text-xs font-bold bg-accent/10 px-1.5 h-5 rounded flex items-center">SS</span>
                           <span className="text-white text-sm">{pair.map(p => p.exercise_name).join(' + ')}</span>
                         </div>
                       )

@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { Layout } from './components/ui/Layout'
 import { PageLoader } from './components/ui/Spinner'
 import AuthPage        from './pages/AuthPage'
+import PhysioPage      from './pages/PhysioPage'
 import HomePage        from './pages/HomePage'
 import PlansPage       from './pages/PlansPage'
 import PlanBuilderPage from './pages/PlanBuilderPage'
@@ -15,8 +17,12 @@ import SettingsPage    from './pages/SettingsPage'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
+  const [physioMode, setPhysioMode] = useState(() => localStorage.getItem('lift_physio') === '1')
   if (loading) return <PageLoader />
-  if (!user)   return <AuthPage />
+  if (!user)   return <AuthPage onPhysioModeChange={setPhysioMode} />
+  if (physioMode) {
+    return <PhysioPage onExit={() => { localStorage.removeItem('lift_physio'); setPhysioMode(false) }} />
+  }
   return (
     <SettingsProvider>
       <Layout>

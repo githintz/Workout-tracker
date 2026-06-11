@@ -12,6 +12,7 @@ import {
   syncAllSessions,
 } from '../lib/healthConnect'
 import { supabase } from '../lib/supabase'
+import { ACCENTS, applyAccent, getAccentKey } from '../lib/theme'
 
 const REST_PRESETS = [30, 60, 90, 120, 180, 240]
 
@@ -20,6 +21,12 @@ export default function SettingsPage() {
   const { settings, update } = useSettings()
   const [signingOut, setSigningOut] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('lift_theme') || 'dark')
+  const [accent, setAccent] = useState(getAccentKey)
+
+  const [shares, setShares]         = useState([])
+  const [shareEmail, setShareEmail] = useState('')
+  const [shareMsg, setShareMsg]     = useState('')
+  const [shareBusy, setShareBusy]   = useState(false)
 
   const [hcStatus, setHcStatus]       = useState(null)
   const [hcConnected, setHcConnected] = useState(false)
@@ -48,6 +55,48 @@ export default function SettingsPage() {
     localStorage.setItem('lift_theme', next)
     if (next === 'light') document.documentElement.classList.add('light')
     else document.documentElement.classList.remove('light')
+  }
+
+  const chooseAccent = (key) => {
+    setAccent(key)
+    applyAccent(key)
+  }
+
+  useEffect(() => {
+    if (!user) return
+    loadShares()
+  }, [user])
+
+  async function loadShares() {
+    const { data } = await supabase.from('shared_access').select('*')
+      .eq('owner_id', user.id).order('created_at')
+    setShares(data || [])
+  }
+
+  async function addShare(e) {
+    e.preventDefault()
+    const email = shareEmail.trim().toLowerCase()
+    if (!email) return
+    if (email === user.email?.toLowerCase()) {
+      setShareMsg("That's your own email.")
+      return
+    }
+    setShareBusy(true)
+    setShareMsg('')
+    const { error } = await supabase.from('shared_access')
+      .insert({ owner_id: user.id, owner_email: user.email, viewer_email: email })
+    if (error) {
+      setShareMsg(error.code === '23505' ? 'Already shared with this email.' : `Could not share: ${error.message}`)
+    } else {
+      setShareEmail('')
+      await loadShares()
+    }
+    setShareBusy(false)
+  }
+
+  async function removeShare(id) {
+    await supabase.from('shared_access').delete().eq('id', id)
+    loadShares()
   }
 
   async function connectHealthConnect() {
@@ -86,10 +135,21 @@ export default function SettingsPage() {
           ].map(({ key, label }) => (
             <button key={key} onClick={() => toggleTheme(key)}
               className={`flex-1 h-12 rounded-2xl text-base font-semibold transition-all active:scale-95 ${
-                theme === key ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
+                theme === key ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
               }`}>
               {label}
             </button>
+          ))}
+        </div>
+
+        <p className="text-[#555] text-sm mt-5 mb-3">Accent color</p>
+        <div className="flex gap-3 flex-wrap">
+          {Object.entries(ACCENTS).map(([key, a]) => (
+            <button key={key} onClick={() => chooseAccent(key)} aria-label={a.name} title={a.name}
+              className={`w-10 h-10 rounded-full transition-all active:scale-90 ${
+                accent === key ? 'ring-2 ring-white ring-offset-2 ring-offset-[#111]' : ''
+              }`}
+              style={{ background: a.hex }} />
           ))}
         </div>
       </Card>
@@ -105,7 +165,7 @@ export default function SettingsPage() {
             return (
               <button key={s} onClick={() => setRest(s)}
                 className={`h-11 px-5 rounded-2xl text-sm font-semibold transition-all active:scale-95 ${
-                  active ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
+                  active ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
                 }`}>
                 {label}
               </button>
@@ -118,7 +178,7 @@ export default function SettingsPage() {
             type="number"
             value={settings.rest_timer_seconds}
             onChange={e => setRest(parseInt(e.target.value) || 90)}
-            className="w-20 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center focus:outline-none focus:border-[#e8ff47]/50"
+            className="w-20 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center focus:outline-none focus:border-accent/50"
           />
         </div>
       </Card>
@@ -131,7 +191,7 @@ export default function SettingsPage() {
           {['kg', 'lbs'].map(u => (
             <button key={u} onClick={() => setUnit(u)}
               className={`flex-1 h-12 rounded-2xl text-base font-semibold transition-all active:scale-95 ${
-                settings.weight_unit === u ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
+                settings.weight_unit === u ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
               }`}>
               {u}
             </button>
@@ -147,7 +207,7 @@ export default function SettingsPage() {
           {[2,3,4,5,6,7].map(n => (
             <button key={n} onClick={() => update({ weekly_target: n })}
               className={`flex-1 h-11 rounded-2xl text-sm font-semibold transition-all active:scale-95 ${
-                settings.weekly_target === n ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
+                settings.weekly_target === n ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
               }`}>
               {n}
             </button>
@@ -190,6 +250,50 @@ export default function SettingsPage() {
           {hcMessage && <p className="text-[#4fdf7c] text-xs">{hcMessage}</p>}
         </Card>
       )}
+
+      {/* Physiotherapist access */}
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🩺</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-semibold text-sm">Physiotherapist Access</p>
+            <p className="text-[#555] text-xs">
+              Give someone read-only access to your workout and cardio logs. They sign in with
+              their own email using Physiotherapist mode on the login screen.
+            </p>
+          </div>
+        </div>
+
+        {shares.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {shares.map(s => (
+              <div key={s.id} className="flex items-center gap-3 bg-[#1a1a1a] rounded-2xl px-3 py-2">
+                <p className="text-white text-sm flex-1 min-w-0 truncate">{s.viewer_email}</p>
+                <button onClick={() => removeShare(s.id)}
+                  className="text-[#ff4f4f] text-xs font-semibold shrink-0 active:scale-95">
+                  Revoke
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={addShare} className="flex gap-2">
+          <input
+            type="email"
+            placeholder="physio@example.com"
+            value={shareEmail}
+            onChange={e => setShareEmail(e.target.value)}
+            required
+            className="flex-1 h-11 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm focus:outline-none focus:border-accent/50"
+          />
+          <Button type="submit" size="sm" disabled={shareBusy}>
+            {shareBusy ? 'Adding…' : 'Share'}
+          </Button>
+        </form>
+
+        {shareMsg && <p className="text-[#ff8c42] text-xs">{shareMsg}</p>}
+      </Card>
 
       {/* Account */}
       <Card>

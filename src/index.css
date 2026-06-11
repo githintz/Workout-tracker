@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+}
+
 @layer base {
   :root {
     --bg: #000000;
@@ -108,6 +113,3 @@ html.light [class~="text-[#333]"] { color: var(--border2) !important; }
 /* Placeholder text */
 html.light [class~="placeholder:text-[#333]"]::placeholder,
 html.light [class~="placeholder:text-[#444]"]::placeholder { color: var(--border2) !important; }
-
-/* Focus borders */
-html.light [class~="focus:border-[#e8ff47]/50"]:focus { border-color: rgba(232, 255, 71, 0.5) !important; }

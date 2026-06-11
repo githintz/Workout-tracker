@@ -39,7 +39,7 @@ function ExerciseSearch({ onSelect, placeholder = 'Search exercises…' }) {
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
-          placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 transition-colors w-full"
+          placeholder:text-[#444] focus:outline-none focus:border-accent/50 transition-colors w-full"
       />
       {open && query.length > 0 && (
         <div className="absolute top-14 left-0 right-0 z-20 bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl overflow-hidden shadow-2xl">
@@ -61,7 +61,7 @@ function ExerciseSearch({ onSelect, placeholder = 'Search exercises…' }) {
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#2a2a2a] text-left transition-colors border-t border-[#2e2e2e]"
           >
             <div className="w-9 h-9 rounded-xl bg-[#2e2e2e] flex items-center justify-center text-sm shrink-0">✏️</div>
-            <p className="text-[#e8ff47] text-sm">Add "{query}" as custom</p>
+            <p className="text-accent text-sm">Add "{query}" as custom</p>
           </button>
         </div>
       )}
@@ -150,9 +150,9 @@ function DayEditor({ day, onChange }) {
           {grouped.map((item, i) => {
             if (item.type === 'superset') {
               return (
-                <div key={item.pair[0].superset_group} className="bg-[#1a1a1a] border border-[#e8ff47]/20 rounded-2xl p-3 flex flex-col gap-1.5">
+                <div key={item.pair[0].superset_group} className="bg-[#1a1a1a] border border-accent/20 rounded-2xl p-3 flex flex-col gap-1.5">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[#e8ff47] text-xs font-bold uppercase">Superset</span>
+                    <span className="text-accent text-xs font-bold uppercase">Superset</span>
                     <button onClick={() => removeExercise(item.pair[0].id)} className="text-[#ff4f4f] text-xs hover:text-[#ff4f4f]">Remove</button>
                   </div>
                   {item.pair.map((p, pi) => (
@@ -180,14 +180,14 @@ function DayEditor({ day, onChange }) {
 
         <button
           onClick={() => setShowSuperset(!showSuperset)}
-          className="mt-2 text-[#e8ff47] text-sm font-medium flex items-center gap-1"
+          className="mt-2 text-accent text-sm font-medium flex items-center gap-1"
         >
           {showSuperset ? '↑ Hide' : '+ Add Superset'}
         </button>
 
         {showSuperset && (
-          <div className="mt-3 bg-[#1a1a1a] border border-[#e8ff47]/20 rounded-2xl p-4 flex flex-col gap-3">
-            <p className="text-[#e8ff47] text-xs font-bold uppercase">Superset</p>
+          <div className="mt-3 bg-[#1a1a1a] border border-accent/20 rounded-2xl p-4 flex flex-col gap-3">
+            <p className="text-accent text-xs font-bold uppercase">Superset</p>
             <ExerciseSearch
               placeholder="Exercise A…"
               onSelect={ex => setSsA(ex.name)}
@@ -298,7 +298,7 @@ export default function PlanBuilderPage() {
                   onClick={() => setDayCount(n)}
                   className={`h-12 flex-1 rounded-2xl text-lg font-bold transition-all active:scale-95 ${
                     dayCount === n
-                      ? 'bg-[#e8ff47] text-black'
+                      ? 'bg-accent text-black'
                       : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
                   }`}
                 >
@@ -332,7 +332,7 @@ export default function PlanBuilderPage() {
             key={i}
             onClick={() => setActiveDay(i)}
             className={`shrink-0 px-4 h-9 rounded-full text-sm font-medium transition-all ${
-              activeDay === i ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] text-[#777] border border-[#2e2e2e]'
+              activeDay === i ? 'bg-accent text-black' : 'bg-[#1e1e1e] text-[#777] border border-[#2e2e2e]'
             }`}
           >
             Day {i + 1}

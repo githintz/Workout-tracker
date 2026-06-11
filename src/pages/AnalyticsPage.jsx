@@ -10,6 +10,7 @@ import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Capacitor } from '@capacitor/core'
 import { readStepsHistory, hasPermissions } from '../lib/healthConnect'
+import { getAccent } from '../lib/theme'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -21,7 +22,6 @@ import {
 
 const TABS = ['Overview', 'Calendar', 'Exercises', 'Cardio', 'History']
 
-const ACCENT = '#e8ff47'
 const MUTED  = '#444'
 
 // ─── Custom Tooltip ────────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ function CustomTooltip({ active, payload, label }) {
     <div className="bg-[#1e1e1e] border border-[#2e2e2e] rounded-xl px-3 py-2 text-sm shadow-xl">
       <p className="text-[#777] text-xs mb-1">{label}</p>
       {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color || ACCENT }} className="font-semibold">
+        <p key={i} style={{ color: p.color || getAccent() }} className="font-semibold">
           {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
         </p>
       ))}
@@ -95,7 +95,7 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
             {session.duration_seconds && (
               <div>
                 <p className="text-[#555] text-xs">Duration</p>
-                <p className="text-[#e8ff47] text-sm font-semibold">{formatDur(session.duration_seconds)}</p>
+                <p className="text-accent text-sm font-semibold">{formatDur(session.duration_seconds)}</p>
               </div>
             )}
           </>}
@@ -119,7 +119,7 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
                   <>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-white font-semibold text-sm">{g.nameA}</p>
-                      <span className="text-[#e8ff47] text-xs bg-[#e8ff47]/10 px-2 h-5 rounded-full flex items-center font-bold shrink-0">SS</span>
+                      <span className="text-accent text-xs bg-accent/10 px-2 h-5 rounded-full flex items-center font-bold shrink-0">SS</span>
                       <p className="text-white font-semibold text-sm">{g.nameB}</p>
                     </div>
                     <div className="flex items-center gap-2 px-1">
@@ -210,9 +210,9 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClic
             <button key={day.toISOString()}
               onClick={() => (w || c) && setSelDay(isSel ? null : day)}
               className={`aspect-square rounded-xl flex items-center justify-center text-xs font-medium transition-all relative
-                ${isToday ? 'ring-1 ring-[#e8ff47]/50' : ''}
+                ${isToday ? 'ring-1 ring-accent/50' : ''}
                 ${isSel ? 'ring-2 ring-white/40' : ''}
-                ${w ? 'bg-[#e8ff47]/20 text-[#e8ff47]' : c ? 'bg-[#4fa8ff]/20 text-[#4fa8ff]' : 'bg-[#1a1a1a] text-[#444]'}
+                ${w ? 'bg-accent/20 text-accent' : c ? 'bg-[#4fa8ff]/20 text-[#4fa8ff]' : 'bg-[#1a1a1a] text-[#444]'}
                 ${(w || c) ? 'active:scale-90' : 'cursor-default'}`}
             >
               {format(day, 'd')}
@@ -223,7 +223,7 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClic
       </div>
 
       <div className="flex gap-4 text-xs text-[#555]">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#e8ff47]/30" />Workout</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-accent/30" />Workout</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#4fa8ff]/30" />Cardio</span>
       </div>
 
@@ -237,7 +237,7 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClic
                 <p className="text-white text-sm font-medium">{s.day_title || 'Workout'}</p>
                 <p className="text-[#555] text-xs">{s.plan_name}{s.duration_seconds ? ` · ${formatDur(s.duration_seconds)}` : ''}</p>
               </div>
-              <span className="text-[#e8ff47] text-xs shrink-0">View →</span>
+              <span className="text-accent text-xs shrink-0">View →</span>
             </button>
           ))}
           {dayCardio.map(s => (
@@ -344,7 +344,7 @@ function OverviewTab({ sessions, cardioSessions, stepsHistory }) {
       <div className="grid grid-cols-2 gap-3">
         {stats.map(s => (
           <Card key={s.label} className="text-center py-4">
-            <p className="text-[#e8ff47] text-3xl font-bold">{s.value}</p>
+            <p className="text-accent text-3xl font-bold">{s.value}</p>
             <p className="text-[#555] text-xs mt-1">{s.label}</p>
           </Card>
         ))}
@@ -373,12 +373,12 @@ function OverviewTab({ sessions, cardioSessions, stepsHistory }) {
             <XAxis dataKey="label" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
             <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="Workouts" fill={ACCENT} radius={[4,4,0,0]} />
+            <Bar dataKey="Workouts" fill={getAccent()} radius={[4,4,0,0]} />
             <Bar dataKey="Cardio" fill="#4fa8ff" radius={[4,4,0,0]} />
           </BarChart>
         </ResponsiveContainer>
         <div className="flex gap-4 mt-2 text-xs text-[#555]">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-[#e8ff47]/60 inline-block" />Workouts</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-accent/60 inline-block" />Workouts</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-[#4fa8ff]/60 inline-block" />Cardio</span>
         </div>
       </Card>
@@ -409,7 +409,7 @@ function OverviewTab({ sessions, cardioSessions, stepsHistory }) {
               <XAxis dataKey="week" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="Workouts" fill={ACCENT} radius={[6,6,0,0]} />
+              <Bar dataKey="Workouts" fill={getAccent()} radius={[6,6,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -516,7 +516,7 @@ function ExercisesTab({ allSets }) {
             value={selected}
             onChange={e => setSelected(e.target.value)}
             className="w-full h-12 px-4 pr-10 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
-              focus:outline-none focus:border-[#e8ff47]/50 appearance-none"
+              focus:outline-none focus:border-accent/50 appearance-none"
           >
             <option value="">-- Choose an exercise --</option>
             {exercises.map(e => <option key={e} value={e}>{e}</option>)}
@@ -534,11 +534,11 @@ function ExercisesTab({ allSets }) {
           <p className="text-white font-semibold mb-3">Personal Records</p>
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
-              <p className="text-[#e8ff47] text-2xl font-bold">{prs.maxOneRM}</p>
+              <p className="text-accent text-2xl font-bold">{prs.maxOneRM}</p>
               <p className="text-[#555] text-xs mt-1">Est. 1RM ({unit})</p>
             </div>
             <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
-              <p className="text-[#e8ff47] text-2xl font-bold">{prs.maxWeight}</p>
+              <p className="text-accent text-2xl font-bold">{prs.maxWeight}</p>
               <p className="text-[#555] text-xs mt-1">Max Weight ({unit})</p>
             </div>
             <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
@@ -565,8 +565,8 @@ function ExercisesTab({ allSets }) {
                 <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="OneRM" name={`1RM (${unit})`} stroke={ACCENT} strokeWidth={2.5}
-                  dot={{ fill: ACCENT, strokeWidth: 0, r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="OneRM" name={`1RM (${unit})`} stroke={getAccent()} strokeWidth={2.5}
+                  dot={{ fill: getAccent(), strokeWidth: 0, r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </Card>
@@ -646,7 +646,7 @@ function CardioTab({ cardioSessions }) {
         {['run','hiit','cycle','walk'].map(t => (
           <button key={t} onClick={() => setType(t)}
             className={`px-4 h-9 rounded-full text-sm font-medium transition-all capitalize ${
-              type === t ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
+              type === t ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
             }`}>{t}</button>
         ))}
       </div>
@@ -657,18 +657,18 @@ function CardioTab({ cardioSessions }) {
         <>
           <div className="grid grid-cols-2 gap-3">
             <Card className="text-center py-4">
-              <p className="text-[#e8ff47] text-2xl font-bold">{filtered.length}</p>
+              <p className="text-accent text-2xl font-bold">{filtered.length}</p>
               <p className="text-[#555] text-xs mt-1">Sessions</p>
             </Card>
             {totalDist > 0 && (
               <Card className="text-center py-4">
-                <p className="text-[#e8ff47] text-2xl font-bold">{totalDist.toFixed(1)}</p>
+                <p className="text-accent text-2xl font-bold">{totalDist.toFixed(1)}</p>
                 <p className="text-[#555] text-xs mt-1">Total km</p>
               </Card>
             )}
             {totalTime > 0 && (
               <Card className="text-center py-4">
-                <p className="text-[#e8ff47] text-2xl font-bold">{Math.round(totalTime/60)}</p>
+                <p className="text-accent text-2xl font-bold">{Math.round(totalTime/60)}</p>
                 <p className="text-[#555] text-xs mt-1">Total minutes</p>
               </Card>
             )}
@@ -683,8 +683,8 @@ function CardioTab({ cardioSessions }) {
                   <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Line type="monotone" dataKey="Distance" name="Distance (km)" stroke={ACCENT} strokeWidth={2.5}
-                    dot={{ fill: ACCENT, strokeWidth: 0, r: 4 }} connectNulls />
+                  <Line type="monotone" dataKey="Distance" name="Distance (km)" stroke={getAccent()} strokeWidth={2.5}
+                    dot={{ fill: getAccent(), strokeWidth: 0, r: 4 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             </Card>
@@ -714,11 +714,11 @@ function CardioTab({ cardioSessions }) {
                 <p className="text-white font-semibold mb-3">HIIT Summary</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
-                    <p className="text-[#e8ff47] text-xl font-bold">{Math.max(...hiitData.map(h => h.speed_high || 0))}</p>
+                    <p className="text-accent text-xl font-bold">{Math.max(...hiitData.map(h => h.speed_high || 0))}</p>
                     <p className="text-[#555] text-xs mt-1">Best High Speed</p>
                   </div>
                   <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
-                    <p className="text-[#e8ff47] text-xl font-bold">{hiitData.reduce((a,h) => a + (h.reps || 0), 0)}</p>
+                    <p className="text-accent text-xl font-bold">{hiitData.reduce((a,h) => a + (h.reps || 0), 0)}</p>
                     <p className="text-[#555] text-xs mt-1">Total Reps</p>
                   </div>
                 </div>
@@ -813,13 +813,13 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
             <label className="text-[#777] text-sm font-medium">Start</label>
             <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)}
               className="h-12 px-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
-                focus:outline-none focus:border-[#e8ff47]/50 w-full" />
+                focus:outline-none focus:border-accent/50 w-full" />
           </div>
           <div className="flex flex-col gap-1.5 flex-1">
             <label className="text-[#777] text-sm font-medium">End</label>
             <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)}
               className="h-12 px-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
-                focus:outline-none focus:border-[#e8ff47]/50 w-full" />
+                focus:outline-none focus:border-accent/50 w-full" />
           </div>
         </div>
 
@@ -828,7 +828,7 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
             <div className="flex items-center justify-between">
               <p className="text-white font-semibold text-sm">{name}</p>
               <button onClick={() => addSet(name)}
-                className="text-[#e8ff47] text-xs font-medium">+ set</button>
+                className="text-accent text-xs font-medium">+ set</button>
             </div>
             <div className="flex items-center gap-2 px-1">
               <span className="w-5 text-[#555] text-xs">#</span>
@@ -843,10 +843,10 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
                   <span className="w-5 text-[#555] text-xs text-center">{i + 1}</span>
                   <input type="number" inputMode="decimal" value={s.weight ?? ''} placeholder="0"
                     onChange={e => updateSet(gi, 'weight', e.target.value)}
-                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-[#e8ff47]/50" />
+                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-accent/50" />
                   <input type="number" inputMode="numeric" value={s.reps ?? ''} placeholder="0"
                     onChange={e => updateSet(gi, 'reps', e.target.value)}
-                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-[#e8ff47]/50" />
+                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-accent/50" />
                   <button onClick={() => removeSet(gi)}
                     className="w-7 h-7 flex items-center justify-center text-[#444] hover:text-[#ff4f4f] text-lg">×</button>
                 </div>
@@ -860,7 +860,7 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
             placeholder="Any notes…"
             className="px-4 py-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
-              placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 resize-none w-full" />
+              placeholder:text-[#444] focus:outline-none focus:border-accent/50 resize-none w-full" />
         </div>
 
         <Button size="lg" className="w-full" onClick={save} disabled={saving}>
@@ -897,7 +897,7 @@ function HistoryTab({ sessions, onDelete, onEdit, onView }) {
                 </div>
                 <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                   <button onClick={() => onEdit(s)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#777] hover:bg-[#e8ff47]/10 hover:text-[#e8ff47] transition-colors text-sm">✏️</button>
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#777] hover:bg-accent/10 hover:text-accent transition-colors text-sm">✏️</button>
                   <button onClick={() => onDelete(s.id)}
                     className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#555] hover:bg-[#ff4f4f]/10 hover:text-[#ff4f4f] transition-colors text-lg leading-none">×</button>
                 </div>
@@ -921,7 +921,7 @@ function HistoryTab({ sessions, onDelete, onEdit, onView }) {
                 {s.duration_seconds && (
                   <div>
                     <p className="text-[#555] text-xs">Duration</p>
-                    <p className="text-[#e8ff47] text-sm font-semibold">{formatDur(s.duration_seconds)}</p>
+                    <p className="text-accent text-sm font-semibold">{formatDur(s.duration_seconds)}</p>
                   </div>
                 )}
               </div>
@@ -1001,7 +1001,7 @@ export default function AnalyticsPage() {
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(i)}
             className={`shrink-0 px-4 h-9 rounded-full text-sm font-medium transition-all ${
-              tab === i ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
+              tab === i ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
             }`}>{t}</button>
         ))}
       </div>
@@ -1013,7 +1013,7 @@ export default function AnalyticsPage() {
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setFilterMuscle(null)}
                 className={`px-3 h-8 rounded-full text-xs font-medium transition-all ${
-                  !filterMuscle ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
+                  !filterMuscle ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
                 }`}>All</button>
               {MUSCLE_GROUPS.map(g => (
                 <MuscleChip key={g} group={g} active={filterMuscle === g} onClick={() => setFilterMuscle(filterMuscle === g ? null : g)} />

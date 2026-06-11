@@ -64,7 +64,7 @@ export default function PlansPage() {
                   <div className="flex items-center gap-2">
                     <p className="text-white font-bold text-lg truncate">{plan.name}</p>
                     {plan.is_active && (
-                      <span className="text-[#e8ff47] text-xs font-bold bg-[#e8ff47]/10 px-2 h-5 rounded-full flex items-center shrink-0">ACTIVE</span>
+                      <span className="text-accent text-xs font-bold bg-accent/10 px-2 h-5 rounded-full flex items-center shrink-0">ACTIVE</span>
                     )}
                   </div>
                   {plan.description && <p className="text-[#555] text-sm mt-0.5 truncate">{plan.description}</p>}

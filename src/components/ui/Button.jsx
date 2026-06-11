@@ -2,11 +2,11 @@ export function Button({ children, variant = 'primary', size = 'md', className =
   const base = 'inline-flex items-center justify-center font-semibold rounded-2xl transition-all active:scale-95 select-none cursor-pointer disabled:opacity-40 disabled:pointer-events-none'
 
   const variants = {
-    primary:   'bg-[#e8ff47] text-black hover:bg-[#d4eb30]',
+    primary:   'bg-accent text-black hover:bg-[#d4eb30]',
     secondary: 'bg-[#1e1e1e] text-white border border-[#2e2e2e] hover:bg-[#2a2a2a]',
     ghost:     'text-white hover:bg-[#1e1e1e]',
     danger:    'bg-[#ff4f4f]/10 text-[#ff4f4f] border border-[#ff4f4f]/20 hover:bg-[#ff4f4f]/20',
-    accent:    'bg-[#e8ff47]/10 text-[#e8ff47] border border-[#e8ff47]/20 hover:bg-[#e8ff47]/20',
+    accent:    'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20',
   }
 
   const sizes = {

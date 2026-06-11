@@ -146,7 +146,7 @@ export default function CardioPage() {
                 {s.type === 'hiit' && s.hiit_sets?.[0] && (() => {
                   const h = s.hiit_sets[0]
                   return (
-                    <div className="mt-2 bg-[#e8ff47]/5 border border-[#e8ff47]/10 rounded-xl p-2.5 grid grid-cols-2 gap-x-4 gap-y-1">
+                    <div className="mt-2 bg-accent/5 border border-accent/10 rounded-xl p-2.5 grid grid-cols-2 gap-x-4 gap-y-1">
                       {h.speed_high && <p className="text-[#777] text-xs">High: <span className="text-white">{h.speed_high} km/h</span></p>}
                       {h.speed_low  && <p className="text-[#777] text-xs">Low: <span className="text-white">{h.speed_low} km/h</span></p>}
                       {h.high_duration_seconds && <p className="text-[#777] text-xs">On: <span className="text-white">{h.high_duration_seconds}s</span></p>}
@@ -172,7 +172,7 @@ export default function CardioPage() {
               {Object.entries(TYPE_LABELS).map(([k, v]) => (
                 <button key={k} onClick={() => setType(k)}
                   className={`px-4 h-10 rounded-2xl text-sm font-medium transition-all ${
-                    type === k ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
+                    type === k ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
                   }`}>
                   {TYPE_ICONS[k]} {v}
                 </button>
@@ -192,8 +192,8 @@ export default function CardioPage() {
           )}
 
           {type === 'hiit' && (
-            <div className="flex flex-col gap-3 bg-[#1a1a1a] border border-[#e8ff47]/20 rounded-2xl p-4">
-              <p className="text-[#e8ff47] text-xs font-bold uppercase">HIIT Details</p>
+            <div className="flex flex-col gap-3 bg-[#1a1a1a] border border-accent/20 rounded-2xl p-4">
+              <p className="text-accent text-xs font-bold uppercase">HIIT Details</p>
               <div className="grid grid-cols-2 gap-3">
                 <NumberInput label="Speed high (km/h)" placeholder="14" value={speedHigh} onChange={e => setSpeedHigh(e.target.value)} />
                 <NumberInput label="Speed low (km/h)"  placeholder="8"  value={speedLow}  onChange={e => setSpeedLow(e.target.value)} />
