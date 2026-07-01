@@ -11,14 +11,30 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // supabase-js's getSession() can hang indefinitely instead of resolving
+    // (e.g. when it silently tries to refresh a stale token after long
+    // inactivity), leaving the app stuck on the loading screen. Fall back
+    // to the login screen if it takes too long; onAuthStateChange will
+    // still update the user if the session resolves later.
+    const timeout = setTimeout(() => setLoading(false), 8000)
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        clearTimeout(timeout)
+        setUser(session?.user ?? null)
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error('getSession failed:', err)
+        clearTimeout(timeout)
+        setLoading(false)
+      })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null)
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null)
-    })
-    return () => subscription.unsubscribe()
+    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
 
   // On Android, catch the magic link deep link and set the session
