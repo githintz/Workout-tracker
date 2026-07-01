@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/workout-tracker-app-gJ2px]
   workflow_dispatch:
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
 
       - name: Build
         env:

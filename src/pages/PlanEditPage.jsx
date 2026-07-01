@@ -24,7 +24,7 @@ function ExerciseSearch({ onSelect }) {
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search exercises…"
         className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
-          placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 w-full"
+          placeholder:text-[#444] focus:outline-none focus:border-accent/50 w-full"
       />
       {open && query.length > 0 && (
         <div className="absolute top-14 left-0 right-0 z-20 bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl overflow-hidden shadow-2xl">
@@ -38,7 +38,7 @@ function ExerciseSearch({ onSelect }) {
           <button onMouseDown={() => pick({ name: query, muscle: '' })}
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#2a2a2a] text-left border-t border-[#2e2e2e]">
             <div className="w-9 h-9 rounded-xl bg-[#2e2e2e] flex items-center justify-center text-sm shrink-0">✏️</div>
-            <span className="text-[#e8ff47] text-sm">Add "{query}" as custom</span>
+            <span className="text-accent text-sm">Add "{query}" as custom</span>
           </button>
         </div>
       )}
@@ -59,15 +59,15 @@ function SupersetAdder({ onAdd }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mt-1 text-[#e8ff47] text-sm font-medium flex items-center gap-1">
+      <button onClick={() => setOpen(true)} className="mt-1 text-accent text-sm font-medium flex items-center gap-1">
         + Add Superset
       </button>
     )
   }
 
   return (
-    <div className="mt-2 bg-[#1a1a1a] border border-[#e8ff47]/20 rounded-2xl p-4 flex flex-col gap-3">
-      <p className="text-[#e8ff47] text-xs font-bold uppercase">Superset</p>
+    <div className="mt-2 bg-[#1a1a1a] border border-accent/20 rounded-2xl p-4 flex flex-col gap-3">
+      <p className="text-accent text-xs font-bold uppercase">Superset</p>
       <ExerciseSearch onSelect={ex => setNameA(ex.name)} placeholder="Exercise A…" />
       {nameA && <p className="text-white text-sm">A: {nameA}</p>}
       <ExerciseSearch onSelect={ex => setNameB(ex.name)} placeholder="Exercise B…" />
@@ -173,7 +173,7 @@ export default function PlanEditPage() {
         {days.map((d, i) => (
           <button key={i} onClick={() => setActiveDay(i)}
             className={`shrink-0 px-4 h-9 rounded-full text-sm font-medium transition-all ${
-              activeDay === i ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] text-[#777] border border-[#2e2e2e]'
+              activeDay === i ? 'bg-accent text-black' : 'bg-[#1e1e1e] text-[#777] border border-[#2e2e2e]'
             }`}>
             Day {i + 1}
           </button>
@@ -195,9 +195,9 @@ export default function PlanEditPage() {
             <p className="text-[#777] text-sm font-medium mb-2">Exercises</p>
             <div className="flex flex-col gap-2 mb-3">
               {day.exercises.map(ex => (
-                <div key={ex.id} className={`bg-[#1a1a1a] border ${ex.is_superset ? 'border-[#e8ff47]/20' : 'border-[#2e2e2e]'} rounded-2xl px-4 py-3 flex items-center justify-between`}>
+                <div key={ex.id} className={`bg-[#1a1a1a] border ${ex.is_superset ? 'border-accent/20' : 'border-[#2e2e2e]'} rounded-2xl px-4 py-3 flex items-center justify-between`}>
                   <div>
-                    {ex.is_superset && <span className="text-[#e8ff47] text-xs font-bold uppercase mr-2">SS</span>}
+                    {ex.is_superset && <span className="text-accent text-xs font-bold uppercase mr-2">SS</span>}
                     <span className="text-white text-sm">{ex.name}</span>
                   </div>
                   <button onClick={() => removeExercise(activeDay, ex.id)} className="text-[#555] hover:text-[#ff4f4f] text-lg">×</button>

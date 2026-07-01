@@ -8,12 +8,15 @@ import { Card } from '../components/ui/Card'
 import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
+import { Capacitor } from '@capacitor/core'
+import { readStepsToday, hasStepsPermission } from '../lib/healthConnect'
+import { getAccent } from '../lib/theme'
 
 function WeeklyRing({ done, target }) {
   const pct = target > 0 ? Math.min(done / target, 1) : 0
   const r = 32, cx = 40, cy = 40, circ = 2 * Math.PI * r
   const dash = circ * pct
-  const color = done >= target ? '#4fdf7c' : '#e8ff47'
+  const color = done >= target ? '#4fdf7c' : getAccent()
   return (
     <div className="relative w-20 h-20 flex items-center justify-center">
       <svg width="80" height="80" className="-rotate-90 absolute inset-0">
@@ -40,10 +43,16 @@ export default function HomePage() {
   const [weekSessions, setWeekSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [todaySession, setTodaySession] = useState(null)
+  const [stepsToday, setStepsToday] = useState(null)
 
   useEffect(() => {
     if (!user) return
     loadData()
+    if (Capacitor.isNativePlatform()) {
+      hasStepsPermission().then(granted => {
+        if (granted) readStepsToday().then(s => setStepsToday(s))
+      })
+    }
   }, [user])
 
   async function loadData() {
@@ -105,6 +114,17 @@ export default function HomePage() {
         </div>
       </Card>
 
+      {/* Steps today — Android only */}
+      {Capacitor.isNativePlatform() && stepsToday !== null && (
+        <Card className="flex items-center gap-4">
+          <span className="text-2xl">👟</span>
+          <div className="flex-1">
+            <p className="text-[#777] text-xs font-medium uppercase tracking-wider mb-0.5">Steps Today</p>
+            <p className="text-white font-bold text-xl">{stepsToday.toLocaleString()}</p>
+          </div>
+        </Card>
+      )}
+
       {/* Active plan card */}
       {plan ? (
         <Card className="flex flex-col gap-4">
@@ -114,7 +134,7 @@ export default function HomePage() {
               <p className="text-white font-bold text-xl">{plan.name}</p>
               <p className="text-[#444] text-sm mt-0.5">{days.length} days</p>
             </div>
-            <span className="text-[#e8ff47] text-xs font-bold bg-[#e8ff47]/10 px-2 h-6 rounded-full flex items-center">ACTIVE</span>
+            <span className="text-accent text-xs font-bold bg-accent/10 px-2 h-6 rounded-full flex items-center">ACTIVE</span>
           </div>
 
           <div className="flex flex-col gap-2">

@@ -1,9 +1,31 @@
+import { useState, Component } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { Layout } from './components/ui/Layout'
 import { PageLoader } from './components/ui/Spinner'
 import AuthPage        from './pages/AuthPage'
+import PhysioPage      from './pages/PhysioPage'
+
+class ErrorBoundary extends Component {
+  state = { error: null }
+  static getDerivedStateFromError(e) { return { error: e } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ minHeight: '100dvh', background: '#0a0a0a', color: '#f0f0f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', gap: '1rem', fontFamily: 'sans-serif' }}>
+          <div style={{ fontSize: '2rem' }}>⚠️</div>
+          <p style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Something went wrong</p>
+          <p style={{ color: '#777', fontSize: '0.875rem', textAlign: 'center', maxWidth: '30rem' }}>{this.state.error.message}</p>
+          <button onClick={() => window.location.reload()} style={{ marginTop: '1rem', padding: '0.75rem 1.5rem', background: '#e8ff47', color: '#000', border: 'none', borderRadius: '1rem', fontWeight: 'bold', cursor: 'pointer' }}>
+            Reload
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 import HomePage        from './pages/HomePage'
 import PlansPage       from './pages/PlansPage'
 import PlanBuilderPage from './pages/PlanBuilderPage'
@@ -15,8 +37,12 @@ import SettingsPage    from './pages/SettingsPage'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
+  const [physioMode, setPhysioMode] = useState(() => localStorage.getItem('lift_physio') === '1')
   if (loading) return <PageLoader />
-  if (!user)   return <AuthPage />
+  if (!user)   return <AuthPage onPhysioModeChange={setPhysioMode} />
+  if (physioMode) {
+    return <PhysioPage onExit={() => { localStorage.removeItem('lift_physio'); setPhysioMode(false) }} />
+  }
   return (
     <SettingsProvider>
       <Layout>
@@ -38,10 +64,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

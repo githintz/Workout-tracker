@@ -68,13 +68,13 @@ function FeedbackModal({ open, onClose, page }) {
               rows={4}
               placeholder="Describe the change you'd like…"
               className="px-4 py-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
-                placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 resize-none w-full"
+                placeholder:text-[#444] focus:outline-none focus:border-accent/50 resize-none w-full"
               autoFocus
             />
             <button
               onClick={submit}
               disabled={saving || !text.trim()}
-              className="h-12 rounded-2xl bg-[#e8ff47] text-black font-semibold text-base
+              className="h-12 rounded-2xl bg-accent text-black font-semibold text-base
                 disabled:opacity-40 active:scale-95 transition-all"
             >
               {saving ? 'Saving…' : 'Submit Feedback'}
@@ -99,14 +99,17 @@ export function Layout({ children }) {
 
   return (
     <div className="flex flex-col min-h-dvh max-w-2xl mx-auto w-full">
-      {/* Top bar */}
-      <header className="flex items-center justify-between px-5 h-14 shrink-0 border-b border-[#1e1e1e] sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-xl z-30">
-        <span className="text-[#e8ff47] font-black text-xl tracking-tight">LIFT</span>
+      {/* Top bar — padding-top pushes content below the Android status bar */}
+      <header
+        className="flex items-center justify-between px-5 shrink-0 border-b border-[#1e1e1e] sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-xl z-30"
+        style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(3.5rem + env(safe-area-inset-top))' }}
+      >
+        <span className="text-accent font-black text-xl tracking-tight">LIFT</span>
         <span className="text-[#555] text-xs font-medium">{currentPage}</span>
         <button
           onClick={() => setShowFeedback(true)}
           className="h-8 px-3 rounded-full bg-[#1e1e1e] border border-[#2e2e2e] text-[#777] text-xs font-medium
-            hover:border-[#e8ff47]/40 hover:text-[#e8ff47] transition-colors active:scale-95"
+            hover:border-accent/40 hover:text-accent transition-colors active:scale-95"
         >
           Feedback
         </button>
@@ -128,7 +131,7 @@ export function Layout({ children }) {
               <NavLink key={to} to={to} end={to === '/'}
                 className={({ isActive }) =>
                   `flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all min-w-[48px] ${
-                    isActive ? 'bg-[#e8ff47] text-black' : 'text-[#555]'
+                    isActive ? 'bg-accent text-black' : 'text-[#555]'
                   }`
                 }
               >

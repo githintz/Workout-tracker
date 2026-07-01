@@ -8,6 +8,9 @@ import { PageLoader } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
+import { Capacitor } from '@capacitor/core'
+import { readStepsHistory, hasPermissions } from '../lib/healthConnect'
+import { getAccent } from '../lib/theme'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -19,7 +22,6 @@ import {
 
 const TABS = ['Overview', 'Calendar', 'Exercises', 'Cardio', 'History']
 
-const ACCENT = '#e8ff47'
 const MUTED  = '#444'
 
 // ─── Custom Tooltip ────────────────────────────────────────────────────────────
@@ -29,8 +31,8 @@ function CustomTooltip({ active, payload, label }) {
     <div className="bg-[#1e1e1e] border border-[#2e2e2e] rounded-xl px-3 py-2 text-sm shadow-xl">
       <p className="text-[#777] text-xs mb-1">{label}</p>
       {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color || ACCENT }} className="font-semibold">
-          {p.name}: {typeof p.value === 'number' ? p.value.toFixed(1) : p.value}
+        <p key={i} style={{ color: p.color || getAccent() }} className="font-semibold">
+          {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
         </p>
       ))}
     </div>
@@ -58,7 +60,6 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
     return m > 0 ? `${m}m ${s}s` : `${s}s`
   }
 
-  // Group sets by exercise, pairing superset A+B together
   const grouped = []
   const seen = new Set()
   for (const s of sets) {
@@ -75,7 +76,6 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
   return (
     <Modal open={open} onClose={onClose} title={session?.day_title || 'Workout'}>
       <div className="flex flex-col gap-4">
-        {/* Meta info */}
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {session && <>
             <div>
@@ -95,7 +95,7 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
             {session.duration_seconds && (
               <div>
                 <p className="text-[#555] text-xs">Duration</p>
-                <p className="text-[#e8ff47] text-sm font-semibold">{formatDur(session.duration_seconds)}</p>
+                <p className="text-accent text-sm font-semibold">{formatDur(session.duration_seconds)}</p>
               </div>
             )}
           </>}
@@ -107,7 +107,6 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
           </div>
         )}
 
-        {/* Sets */}
         {loading ? (
           <p className="text-[#555] text-sm text-center py-4">Loading…</p>
         ) : grouped.length === 0 ? (
@@ -120,7 +119,7 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
                   <>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-white font-semibold text-sm">{g.nameA}</p>
-                      <span className="text-[#e8ff47] text-xs bg-[#e8ff47]/10 px-2 h-5 rounded-full flex items-center font-bold shrink-0">SS</span>
+                      <span className="text-accent text-xs bg-accent/10 px-2 h-5 rounded-full flex items-center font-bold shrink-0">SS</span>
                       <p className="text-white font-semibold text-sm">{g.nameB}</p>
                     </div>
                     <div className="flex items-center gap-2 px-1">
@@ -195,14 +194,12 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClic
         <button onClick={() => setMonth(m => addMonths(m, 1))} className="w-9 h-9 flex items-center justify-center rounded-full bg-[#1e1e1e] text-white">→</button>
       </div>
 
-      {/* Day labels */}
       <div className="grid grid-cols-7 gap-1 text-center">
         {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
           <span key={d} className="text-[#444] text-xs">{d}</span>
         ))}
       </div>
 
-      {/* Cells */}
       <div className="grid grid-cols-7 gap-1">
         {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
         {days.map(day => {
@@ -213,9 +210,9 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClic
             <button key={day.toISOString()}
               onClick={() => (w || c) && setSelDay(isSel ? null : day)}
               className={`aspect-square rounded-xl flex items-center justify-center text-xs font-medium transition-all relative
-                ${isToday ? 'ring-1 ring-[#e8ff47]/50' : ''}
+                ${isToday ? 'ring-1 ring-accent/50' : ''}
                 ${isSel ? 'ring-2 ring-white/40' : ''}
-                ${w ? 'bg-[#e8ff47]/20 text-[#e8ff47]' : c ? 'bg-[#4fa8ff]/20 text-[#4fa8ff]' : 'bg-[#1a1a1a] text-[#444]'}
+                ${w ? 'bg-accent/20 text-accent' : c ? 'bg-[#4fa8ff]/20 text-[#4fa8ff]' : 'bg-[#1a1a1a] text-[#444]'}
                 ${(w || c) ? 'active:scale-90' : 'cursor-default'}`}
             >
               {format(day, 'd')}
@@ -226,11 +223,10 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClic
       </div>
 
       <div className="flex gap-4 text-xs text-[#555]">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#e8ff47]/30" />Workout</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-accent/30" />Workout</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#4fa8ff]/30" />Cardio</span>
       </div>
 
-      {/* Day detail panel */}
       {selDay && (daySessions.length > 0 || dayCardio.length > 0) && (
         <div className="bg-[#1a1a1a] rounded-2xl p-3 flex flex-col gap-2">
           <p className="text-[#555] text-xs font-medium">{format(selDay, 'EEEE, MMM d')}</p>
@@ -241,7 +237,7 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClic
                 <p className="text-white text-sm font-medium">{s.day_title || 'Workout'}</p>
                 <p className="text-[#555] text-xs">{s.plan_name}{s.duration_seconds ? ` · ${formatDur(s.duration_seconds)}` : ''}</p>
               </div>
-              <span className="text-[#e8ff47] text-xs shrink-0">View →</span>
+              <span className="text-accent text-xs shrink-0">View →</span>
             </button>
           ))}
           {dayCardio.map(s => (
@@ -260,8 +256,60 @@ function CalendarHeatmap({ sessions, cardioSessions, filterMuscle, onSessionClic
 }
 
 // ─── Overview Tab ──────────────────────────────────────────────────────────────
-function OverviewTab({ sessions, cardioSessions }) {
+function OverviewTab({ sessions, cardioSessions, stepsHistory }) {
   const last30 = sessions.filter(s => new Date(s.started_at) > new Date(Date.now() - 30*86400000))
+
+  const { currentStreak, longestStreak } = useMemo(() => {
+    const allDates = new Set([
+      ...sessions.map(s => s.started_at.split('T')[0]),
+      ...cardioSessions.map(s => s.date),
+    ])
+    const sorted = [...allDates].sort()
+    if (!sorted.length) return { currentStreak: 0, longestStreak: 0 }
+
+    let longest = 1, streak = 1
+    for (let i = 1; i < sorted.length; i++) {
+      const diff = Math.round((new Date(sorted[i]) - new Date(sorted[i-1])) / 86400000)
+      if (diff === 1) { streak++; if (streak > longest) longest = streak }
+      else streak = 1
+    }
+    longest = Math.max(longest, streak)
+
+    const today = new Date().toISOString().split('T')[0]
+    const last = sorted[sorted.length - 1]
+    const daysSinceLast = Math.round((new Date(today) - new Date(last)) / 86400000)
+    let current = 0
+    if (daysSinceLast <= 1) {
+      current = 1
+      for (let i = sorted.length - 2; i >= 0; i--) {
+        if (Math.round((new Date(sorted[i+1]) - new Date(sorted[i])) / 86400000) === 1) current++
+        else break
+      }
+    }
+    return { currentStreak: current, longestStreak: longest }
+  }, [sessions, cardioSessions])
+
+  const weeklySummary = useMemo(() => {
+    const result = []
+    for (let i = 3; i >= 0; i--) {
+      const end = new Date(); end.setHours(23, 59, 59, 999)
+      const endCopy = new Date(end); endCopy.setDate(endCopy.getDate() - i * 7)
+      const startCopy = new Date(endCopy); startCopy.setDate(startCopy.getDate() - 6); startCopy.setHours(0,0,0,0)
+      const label = i === 0 ? 'This wk' : i === 1 ? 'Last wk' : `${i + 1}w ago`
+      const wSessions = sessions.filter(s => { const d = new Date(s.started_at); return d >= startCopy && d <= endCopy }).length
+      const wCardio   = cardioSessions.filter(s => { const d = new Date(s.date); return d >= startCopy && d <= endCopy }).length
+      result.push({ label, Workouts: wSessions, Cardio: wCardio })
+    }
+    return result
+  }, [sessions, cardioSessions])
+
+  const stepsChartData = useMemo(() => {
+    if (!stepsHistory || !Object.keys(stepsHistory).length) return []
+    return Object.entries(stepsHistory)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-14)
+      .map(([date, steps]) => ({ date: format(parseISO(date), 'MMM d'), Steps: steps }))
+  }, [stepsHistory])
 
   const volumeByWeek = useMemo(() => {
     const map = {}
@@ -271,8 +319,6 @@ function OverviewTab({ sessions, cardioSessions }) {
     })
     return Object.entries(map).slice(-12).map(([week, count]) => ({ week, Workouts: count }))
   }, [sessions])
-
-  const totalSets = sessions.reduce((a, s) => a + (s.set_count || 0), 0)
 
   const muscleCount = useMemo(() => {
     const map = {}
@@ -298,11 +344,60 @@ function OverviewTab({ sessions, cardioSessions }) {
       <div className="grid grid-cols-2 gap-3">
         {stats.map(s => (
           <Card key={s.label} className="text-center py-4">
-            <p className="text-[#e8ff47] text-3xl font-bold">{s.value}</p>
+            <p className="text-accent text-3xl font-bold">{s.value}</p>
             <p className="text-[#555] text-xs mt-1">{s.label}</p>
           </Card>
         ))}
       </div>
+
+      {/* Streak cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="text-center py-4">
+          <p className="text-[#4fdf7c] text-3xl font-bold">{currentStreak}</p>
+          <p className="text-[#555] text-xs mt-1">Current Streak</p>
+          <p className="text-[#333] text-xs">{currentStreak === 1 ? 'day' : 'days'}</p>
+        </Card>
+        <Card className="text-center py-4">
+          <p className="text-[#4fa8ff] text-3xl font-bold">{longestStreak}</p>
+          <p className="text-[#555] text-xs mt-1">Longest Streak</p>
+          <p className="text-[#333] text-xs">{longestStreak === 1 ? 'day' : 'days'}</p>
+        </Card>
+      </div>
+
+      {/* Weekly summary */}
+      <Card>
+        <p className="text-white font-semibold mb-4">Weekly Summary</p>
+        <ResponsiveContainer width="100%" height={150}>
+          <BarChart data={weeklySummary} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="Workouts" fill={getAccent()} radius={[4,4,0,0]} />
+            <Bar dataKey="Cardio" fill="#4fa8ff" radius={[4,4,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="flex gap-4 mt-2 text-xs text-[#555]">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-accent/60 inline-block" />Workouts</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-[#4fa8ff]/60 inline-block" />Cardio</span>
+        </div>
+      </Card>
+
+      {/* Steps history — only shown when data is available */}
+      {stepsChartData.length > 1 && (
+        <Card>
+          <p className="text-white font-semibold mb-4">Steps (last 14 days)</p>
+          <ResponsiveContainer width="100%" height={150}>
+            <BarChart data={stepsChartData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 9 }} axisLine={false} tickLine={false} interval={1} />
+              <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="Steps" fill="#4fdf7c" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
 
       {/* Workout frequency */}
       {volumeByWeek.length > 1 && (
@@ -314,7 +409,7 @@ function OverviewTab({ sessions, cardioSessions }) {
               <XAxis dataKey="week" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="Workouts" fill={ACCENT} radius={[6,6,0,0]} />
+              <Bar dataKey="Workouts" fill={getAccent()} radius={[6,6,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -341,6 +436,9 @@ function OverviewTab({ sessions, cardioSessions }) {
 
 // ─── Exercises Tab ─────────────────────────────────────────────────────────────
 function ExercisesTab({ allSets }) {
+  const { settings } = useSettings()
+  const unit = settings.weight_unit || 'kg'
+
   const exercises = useMemo(() => {
     const names = new Set(allSets.map(s => s.exercise_name))
     allSets.forEach(s => { if (s.superset_partner_name) names.add(s.superset_partner_name) })
@@ -348,26 +446,66 @@ function ExercisesTab({ allSets }) {
   }, [allSets])
   const [selected, setSelected] = useState('')
 
-  const progression = useMemo(() => {
+  // Raw sets for selected exercise, sorted by date
+  const rawSets = useMemo(() => {
     if (!selected) return []
-    // Combine primary sets and superset-partner sets for this exercise
     const primary = allSets.filter(s => s.exercise_name === selected && s.weight != null && s.reps != null)
     const partner = allSets
       .filter(s => s.superset_partner_name === selected && s.partner_weight != null && s.partner_reps != null)
       .map(s => ({ ...s, weight: s.partner_weight, reps: s.partner_reps }))
-    return [...primary, ...partner]
-      .sort((a,b) => new Date(a.completed_at) - new Date(b.completed_at))
-      .reduce((acc, s) => {
-        const date = format(parseISO(s.completed_at), 'MMM d')
-        const last = acc[acc.length - 1]
-        if (last?.date === date) {
-          if (+s.weight > last.Weight) { last.Weight = +s.weight; last.Reps = +s.reps }
-        } else {
-          acc.push({ date, Weight: +s.weight, Reps: +s.reps })
-        }
-        return acc
-      }, [])
+    return [...primary, ...partner].sort((a,b) => new Date(a.completed_at) - new Date(b.completed_at))
   }, [selected, allSets])
+
+  // Best weight + reps per session date (for weight/reps/1RM charts)
+  const progression = useMemo(() => {
+    return rawSets.reduce((acc, s) => {
+      const date = format(parseISO(s.completed_at), 'MMM d')
+      const last = acc[acc.length - 1]
+      const oneRM = +(+s.weight * (1 + +s.reps / 30)).toFixed(1)
+      if (last?.date === date) {
+        if (+s.weight > last.Weight) {
+          last.Weight = +s.weight
+          last.Reps   = +s.reps
+          last.OneRM  = oneRM
+        }
+      } else {
+        acc.push({ date, Weight: +s.weight, Reps: +s.reps, OneRM: oneRM })
+      }
+      return acc
+    }, [])
+  }, [rawSets])
+
+  // Volume per session date (sum of weight × reps)
+  const volumeProgression = useMemo(() => {
+    return rawSets.reduce((acc, s) => {
+      const date = format(parseISO(s.completed_at), 'MMM d')
+      const vol = +(+s.weight * +s.reps).toFixed(0)
+      const last = acc[acc.length - 1]
+      if (last?.date === date) {
+        last.Volume = +(last.Volume + vol).toFixed(0)
+      } else {
+        acc.push({ date, Volume: vol })
+      }
+      return acc
+    }, [])
+  }, [rawSets])
+
+  // Personal records
+  const prs = useMemo(() => {
+    if (!rawSets.length) return null
+    let maxWeight = 0, maxReps = 0, maxOneRM = 0, maxVolDate = '', maxVol = 0
+    rawSets.forEach(s => {
+      const w = +s.weight, r = +s.reps
+      if (w > maxWeight) maxWeight = w
+      if (r > maxReps) maxReps = r
+      const orm = +(w * (1 + r / 30)).toFixed(1)
+      if (orm > maxOneRM) maxOneRM = orm
+    })
+    volumeProgression.forEach(v => {
+      if (v.Volume > maxVol) { maxVol = v.Volume; maxVolDate = v.date }
+    })
+    return { maxWeight, maxReps, maxOneRM, maxVol, maxVolDate }
+  }, [rawSets, volumeProgression])
 
   return (
     <div className="flex flex-col gap-4">
@@ -378,7 +516,7 @@ function ExercisesTab({ allSets }) {
             value={selected}
             onChange={e => setSelected(e.target.value)}
             className="w-full h-12 px-4 pr-10 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
-              focus:outline-none focus:border-[#e8ff47]/50 appearance-none"
+              focus:outline-none focus:border-accent/50 appearance-none"
           >
             <option value="">-- Choose an exercise --</option>
             {exercises.map(e => <option key={e} value={e}>{e}</option>)}
@@ -391,50 +529,91 @@ function ExercisesTab({ allSets }) {
         <EmptyState icon="📈" title="Not enough data" subtitle="Log more sets to see progression" />
       )}
 
+      {progression.length > 0 && prs && (
+        <Card>
+          <p className="text-white font-semibold mb-3">Personal Records</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
+              <p className="text-accent text-2xl font-bold">{prs.maxOneRM}</p>
+              <p className="text-[#555] text-xs mt-1">Est. 1RM ({unit})</p>
+            </div>
+            <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
+              <p className="text-accent text-2xl font-bold">{prs.maxWeight}</p>
+              <p className="text-[#555] text-xs mt-1">Max Weight ({unit})</p>
+            </div>
+            <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
+              <p className="text-[#4fa8ff] text-2xl font-bold">{prs.maxReps}</p>
+              <p className="text-[#555] text-xs mt-1">Max Reps</p>
+            </div>
+            <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
+              <p className="text-[#4fdf7c] text-2xl font-bold">{prs.maxVol.toLocaleString()}</p>
+              <p className="text-[#555] text-xs mt-1">Best Volume</p>
+              {prs.maxVolDate && <p className="text-[#333] text-xs">{prs.maxVolDate}</p>}
+            </div>
+          </div>
+        </Card>
+      )}
+
       {progression.length > 1 && (
         <>
           <Card>
-            <p className="text-white font-semibold mb-4">Weight Progression</p>
+            <p className="text-white font-semibold mb-1">Estimated 1RM</p>
+            <p className="text-[#555] text-xs mb-4">Epley formula: weight × (1 + reps/30)</p>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={progression} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" />
                 <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="Weight" stroke={ACCENT} strokeWidth={2.5}
-                  dot={{ fill: ACCENT, strokeWidth: 0, r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="OneRM" name={`1RM (${unit})`} stroke={getAccent()} strokeWidth={2.5}
+                  dot={{ fill: getAccent(), strokeWidth: 0, r: 4 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Card>
+
+          <Card>
+            <p className="text-white font-semibold mb-4">Weight Progression</p>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={progression} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" />
+                <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Line type="monotone" dataKey="Weight" name={`Weight (${unit})`} stroke="#4fa8ff" strokeWidth={2.5}
+                  dot={{ fill: '#4fa8ff', strokeWidth: 0, r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </Card>
 
           <Card>
             <p className="text-white font-semibold mb-4">Reps Progression</p>
-            <ResponsiveContainer width="100%" height={150}>
+            <ResponsiveContainer width="100%" height={140}>
               <LineChart data={progression} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" />
                 <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="Reps" stroke="#4fa8ff" strokeWidth={2.5}
-                  dot={{ fill: '#4fa8ff', strokeWidth: 0, r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="Reps" stroke="#4fdf7c" strokeWidth={2.5}
+                  dot={{ fill: '#4fdf7c', strokeWidth: 0, r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </Card>
 
-          {/* Best performance */}
-          <Card>
-            <p className="text-white font-semibold mb-3">Personal Bests</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
-                <p className="text-[#e8ff47] text-2xl font-bold">{Math.max(...progression.map(p => p.Weight))}</p>
-                <p className="text-[#555] text-xs mt-1">Max Weight</p>
-              </div>
-              <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
-                <p className="text-[#4fa8ff] text-2xl font-bold">{Math.max(...progression.map(p => p.Reps))}</p>
-                <p className="text-[#555] text-xs mt-1">Max Reps</p>
-              </div>
-            </div>
-          </Card>
+          {volumeProgression.length > 1 && (
+            <Card>
+              <p className="text-white font-semibold mb-1">Volume Load per Session</p>
+              <p className="text-[#555] text-xs mb-4">Total weight × reps</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={volumeProgression} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="Volume" name={`Volume (${unit})`} fill="#ff9f47" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
         </>
       )}
     </div>
@@ -463,12 +642,11 @@ function CardioTab({ cardioSessions }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Type filter */}
       <div className="flex gap-2">
         {['run','hiit','cycle','walk'].map(t => (
           <button key={t} onClick={() => setType(t)}
             className={`px-4 h-9 rounded-full text-sm font-medium transition-all capitalize ${
-              type === t ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
+              type === t ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
             }`}>{t}</button>
         ))}
       </div>
@@ -479,18 +657,18 @@ function CardioTab({ cardioSessions }) {
         <>
           <div className="grid grid-cols-2 gap-3">
             <Card className="text-center py-4">
-              <p className="text-[#e8ff47] text-2xl font-bold">{filtered.length}</p>
+              <p className="text-accent text-2xl font-bold">{filtered.length}</p>
               <p className="text-[#555] text-xs mt-1">Sessions</p>
             </Card>
             {totalDist > 0 && (
               <Card className="text-center py-4">
-                <p className="text-[#e8ff47] text-2xl font-bold">{totalDist.toFixed(1)}</p>
+                <p className="text-accent text-2xl font-bold">{totalDist.toFixed(1)}</p>
                 <p className="text-[#555] text-xs mt-1">Total km</p>
               </Card>
             )}
             {totalTime > 0 && (
               <Card className="text-center py-4">
-                <p className="text-[#e8ff47] text-2xl font-bold">{Math.round(totalTime/60)}</p>
+                <p className="text-accent text-2xl font-bold">{Math.round(totalTime/60)}</p>
                 <p className="text-[#555] text-xs mt-1">Total minutes</p>
               </Card>
             )}
@@ -505,8 +683,8 @@ function CardioTab({ cardioSessions }) {
                   <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Line type="monotone" dataKey="Distance" name="Distance (km)" stroke={ACCENT} strokeWidth={2.5}
-                    dot={{ fill: ACCENT, strokeWidth: 0, r: 4 }} connectNulls />
+                  <Line type="monotone" dataKey="Distance" name="Distance (km)" stroke={getAccent()} strokeWidth={2.5}
+                    dot={{ fill: getAccent(), strokeWidth: 0, r: 4 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             </Card>
@@ -536,11 +714,11 @@ function CardioTab({ cardioSessions }) {
                 <p className="text-white font-semibold mb-3">HIIT Summary</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
-                    <p className="text-[#e8ff47] text-xl font-bold">{Math.max(...hiitData.map(h => h.speed_high || 0))}</p>
+                    <p className="text-accent text-xl font-bold">{Math.max(...hiitData.map(h => h.speed_high || 0))}</p>
                     <p className="text-[#555] text-xs mt-1">Best High Speed</p>
                   </div>
                   <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
-                    <p className="text-[#e8ff47] text-xl font-bold">{hiitData.reduce((a,h) => a + (h.reps || 0), 0)}</p>
+                    <p className="text-accent text-xl font-bold">{hiitData.reduce((a,h) => a + (h.reps || 0), 0)}</p>
                     <p className="text-[#555] text-xs mt-1">Total Reps</p>
                   </div>
                 </div>
@@ -603,7 +781,6 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
       })
       .eq('id', session.id)
 
-    // Delete all old sets and reinsert
     await supabase.from('session_sets').delete().eq('session_id', session.id)
     const rows = sets.filter(s => s.reps || s.weight).map((s) => ({
       session_id: session.id,
@@ -622,7 +799,6 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
     onClose()
   }
 
-  // Group sets by exercise
   const byExercise = sets.reduce((acc, s) => {
     acc[s.exercise_name] = acc[s.exercise_name] || []
     acc[s.exercise_name].push(s)
@@ -637,13 +813,13 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
             <label className="text-[#777] text-sm font-medium">Start</label>
             <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)}
               className="h-12 px-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
-                focus:outline-none focus:border-[#e8ff47]/50 w-full" />
+                focus:outline-none focus:border-accent/50 w-full" />
           </div>
           <div className="flex flex-col gap-1.5 flex-1">
             <label className="text-[#777] text-sm font-medium">End</label>
             <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)}
               className="h-12 px-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
-                focus:outline-none focus:border-[#e8ff47]/50 w-full" />
+                focus:outline-none focus:border-accent/50 w-full" />
           </div>
         </div>
 
@@ -652,7 +828,7 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
             <div className="flex items-center justify-between">
               <p className="text-white font-semibold text-sm">{name}</p>
               <button onClick={() => addSet(name)}
-                className="text-[#e8ff47] text-xs font-medium">+ set</button>
+                className="text-accent text-xs font-medium">+ set</button>
             </div>
             <div className="flex items-center gap-2 px-1">
               <span className="w-5 text-[#555] text-xs">#</span>
@@ -667,10 +843,10 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
                   <span className="w-5 text-[#555] text-xs text-center">{i + 1}</span>
                   <input type="number" inputMode="decimal" value={s.weight ?? ''} placeholder="0"
                     onChange={e => updateSet(gi, 'weight', e.target.value)}
-                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-[#e8ff47]/50" />
+                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-accent/50" />
                   <input type="number" inputMode="numeric" value={s.reps ?? ''} placeholder="0"
                     onChange={e => updateSet(gi, 'reps', e.target.value)}
-                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-[#e8ff47]/50" />
+                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-accent/50" />
                   <button onClick={() => removeSet(gi)}
                     className="w-7 h-7 flex items-center justify-center text-[#444] hover:text-[#ff4f4f] text-lg">×</button>
                 </div>
@@ -684,7 +860,7 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
             placeholder="Any notes…"
             className="px-4 py-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-sm
-              placeholder:text-[#444] focus:outline-none focus:border-[#e8ff47]/50 resize-none w-full" />
+              placeholder:text-[#444] focus:outline-none focus:border-accent/50 resize-none w-full" />
         </div>
 
         <Button size="lg" className="w-full" onClick={save} disabled={saving}>
@@ -721,7 +897,7 @@ function HistoryTab({ sessions, onDelete, onEdit, onView }) {
                 </div>
                 <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                   <button onClick={() => onEdit(s)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#777] hover:bg-[#e8ff47]/10 hover:text-[#e8ff47] transition-colors text-sm">✏️</button>
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#777] hover:bg-accent/10 hover:text-accent transition-colors text-sm">✏️</button>
                   <button onClick={() => onDelete(s.id)}
                     className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#555] hover:bg-[#ff4f4f]/10 hover:text-[#ff4f4f] transition-colors text-lg leading-none">×</button>
                 </div>
@@ -745,7 +921,7 @@ function HistoryTab({ sessions, onDelete, onEdit, onView }) {
                 {s.duration_seconds && (
                   <div>
                     <p className="text-[#555] text-xs">Duration</p>
-                    <p className="text-[#e8ff47] text-sm font-semibold">{formatDur(s.duration_seconds)}</p>
+                    <p className="text-accent text-sm font-semibold">{formatDur(s.duration_seconds)}</p>
                   </div>
                 )}
               </div>
@@ -771,6 +947,7 @@ export default function AnalyticsPage() {
   const [sessions,  setSessions]  = useState([])
   const [allSets,   setAllSets]   = useState([])
   const [cardio,    setCardio]    = useState([])
+  const [stepsHistory, setStepsHistory] = useState({})
   const [loading,   setLoading]   = useState(true)
   const [filterMuscle, setFilterMuscle] = useState(null)
   const [viewSession, setViewSession]   = useState(null)
@@ -790,6 +967,12 @@ export default function AnalyticsPage() {
       setCardio(c || [])
       setLoading(false)
     })
+
+    if (Capacitor.isNativePlatform()) {
+      hasPermissions().then(granted => {
+        if (granted) readStepsHistory(30).then(h => setStepsHistory(h || {}))
+      })
+    }
   }, [user])
 
   const deleteSession = async (id) => {
@@ -818,20 +1001,19 @@ export default function AnalyticsPage() {
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(i)}
             className={`shrink-0 px-4 h-9 rounded-full text-sm font-medium transition-all ${
-              tab === i ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
+              tab === i ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
             }`}>{t}</button>
         ))}
       </div>
 
       <div className="px-4">
-        {tab === 0 && <OverviewTab sessions={sessions} cardioSessions={cardio} />}
+        {tab === 0 && <OverviewTab sessions={sessions} cardioSessions={cardio} stepsHistory={stepsHistory} />}
         {tab === 1 && (
           <div className="flex flex-col gap-4">
-            {/* Muscle filter */}
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setFilterMuscle(null)}
                 className={`px-3 h-8 rounded-full text-xs font-medium transition-all ${
-                  !filterMuscle ? 'bg-[#e8ff47] text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
+                  !filterMuscle ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-[#777]'
                 }`}>All</button>
               {MUSCLE_GROUPS.map(g => (
                 <MuscleChip key={g} group={g} active={filterMuscle === g} onClick={() => setFilterMuscle(filterMuscle === g ? null : g)} />

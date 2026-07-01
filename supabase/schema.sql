@@ -152,5 +152,42 @@ create policy "settings_own" on user_settings for all using (auth.uid() = user_i
 alter table feedback enable row level security;
 create policy "feedback_own" on feedback for all using (auth.uid() = user_id);
 
+-- ─── PHYSIO SHARING ───────────────────────────────────────────────────────────
+-- See supabase/migrations/2026-06-11_physio_sharing.sql — run it for existing
+-- databases. Included here for fresh installs.
+create table if not exists shared_access (
+  id           uuid primary key default uuid_generate_v4(),
+  owner_id     uuid references auth.users(id) on delete cascade not null,
+  owner_email  text not null,
+  viewer_email text not null,
+  created_at   timestamptz default now(),
+  unique (owner_id, viewer_email)
+);
+alter table shared_access enable row level security;
+create policy "shared_owner_all" on shared_access
+  for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+create policy "shared_viewer_read" on shared_access
+  for select using (lower(viewer_email) = lower(auth.jwt() ->> 'email'));
+create policy "sessions_shared_read" on workout_sessions
+  for select using (exists (
+    select 1 from shared_access sa
+    where sa.owner_id = user_id and lower(sa.viewer_email) = lower(auth.jwt() ->> 'email')
+  ));
+create policy "sets_shared_read" on session_sets
+  for select using (exists (
+    select 1 from workout_sessions s join shared_access sa on sa.owner_id = s.user_id
+    where s.id = session_id and lower(sa.viewer_email) = lower(auth.jwt() ->> 'email')
+  ));
+create policy "cardio_shared_read" on cardio_sessions
+  for select using (exists (
+    select 1 from shared_access sa
+    where sa.owner_id = user_id and lower(sa.viewer_email) = lower(auth.jwt() ->> 'email')
+  ));
+create policy "hiit_shared_read" on hiit_sets
+  for select using (exists (
+    select 1 from cardio_sessions c join shared_access sa on sa.owner_id = c.user_id
+    where c.id = cardio_session_id and lower(sa.viewer_email) = lower(auth.jwt() ->> 'email')
+  ));
+
 -- Migration: run if table already exists
 -- alter table user_settings add column if not exists weekly_target int default 4;
