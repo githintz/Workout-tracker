@@ -17,15 +17,16 @@ import { ACCENTS, applyAccent, getAccentKey } from '../lib/theme'
 const REST_PRESETS = [30, 60, 90, 120, 180, 240]
 
 export default function SettingsPage() {
-  const { user, signOut }  = useAuth()
+  const { user, signOut, signInWithEmail }  = useAuth()
   const { settings, update } = useSettings()
   const [signingOut, setSigningOut] = useState(false)
-  const [theme, setTheme] = useState(() => localStorage.getItem('lift_theme') || 'dark')
+  const [theme, setTheme] = useState(() => localStorage.getItem('lift_theme') || 'light')
   const [accent, setAccent] = useState(getAccentKey)
 
   const [shares, setShares]         = useState([])
   const [shareEmail, setShareEmail] = useState('')
   const [shareMsg, setShareMsg]     = useState('')
+  const [shareOk, setShareOk]       = useState(false)
   const [shareBusy, setShareBusy]   = useState(false)
 
   const [hcStatus, setHcStatus]       = useState(null)
@@ -78,6 +79,7 @@ export default function SettingsPage() {
     const email = shareEmail.trim().toLowerCase()
     if (!email) return
     if (email === user.email?.toLowerCase()) {
+      setShareOk(false)
       setShareMsg("That's your own email.")
       return
     }
@@ -86,8 +88,12 @@ export default function SettingsPage() {
     const { error } = await supabase.from('shared_access')
       .insert({ owner_id: user.id, owner_email: user.email, viewer_email: email })
     if (error) {
+      setShareOk(false)
       setShareMsg(error.code === '23505' ? 'Already shared with this email.' : `Could not share: ${error.message}`)
     } else {
+      const { error: inviteError } = await signInWithEmail(email)
+      setShareOk(!inviteError)
+      setShareMsg(inviteError ? 'Shared, but the invite email failed to send.' : `Invite sent to ${email}.`)
       setShareEmail('')
       await loadShares()
     }
@@ -292,7 +298,7 @@ export default function SettingsPage() {
           </Button>
         </form>
 
-        {shareMsg && <p className="text-[#ff8c42] text-xs">{shareMsg}</p>}
+        {shareMsg && <p className={`text-xs ${shareOk ? 'text-[#4fdf7c]' : 'text-[#ff8c42]'}`}>{shareMsg}</p>}
       </Card>
 
       {/* Account */}

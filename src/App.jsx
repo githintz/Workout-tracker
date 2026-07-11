@@ -1,7 +1,8 @@
-import { useState, Component } from 'react'
+import { useState, useEffect, Component } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { SettingsProvider } from './contexts/SettingsContext'
+import { supabase } from './lib/supabase'
 import { Layout } from './components/ui/Layout'
 import { PageLoader } from './components/ui/Spinner'
 import AuthPage        from './pages/AuthPage'
@@ -38,6 +39,17 @@ import SettingsPage    from './pages/SettingsPage'
 function AppRoutes() {
   const { user, loading } = useAuth()
   const [physioMode, setPhysioMode] = useState(() => localStorage.getItem('lift_physio') === '1')
+
+  // A physiotherapist invited via email lands here straight from the magic
+  // link, without ever visiting the login screen's mode toggle first, so
+  // detect physio access from their shared_access rows instead of relying
+  // solely on that manual toggle.
+  useEffect(() => {
+    if (!user) return
+    supabase.from('shared_access').select('id').ilike('viewer_email', user.email).limit(1)
+      .then(({ data }) => { if (data?.length) setPhysioMode(true) })
+  }, [user])
+
   if (loading) return <PageLoader />
   if (!user)   return <AuthPage onPhysioModeChange={setPhysioMode} />
   if (physioMode) {

@@ -158,9 +158,11 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
           </div>
         )}
 
-        <Button size="lg" className="w-full" onClick={() => { onClose(); onEdit(session) }}>
-          Edit this workout
-        </Button>
+        {onEdit && (
+          <Button size="lg" className="w-full" onClick={() => { onClose(); onEdit(session) }}>
+            Edit this workout
+          </Button>
+        )}
       </div>
     </Modal>
   )
@@ -895,12 +897,18 @@ function HistoryTab({ sessions, onDelete, onEdit, onView }) {
                   <p className="text-white font-semibold truncate">{s.day_title || 'Workout'}</p>
                   <p className="text-[#555] text-xs">{s.plan_name || ''}</p>
                 </div>
-                <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => onEdit(s)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#777] hover:bg-accent/10 hover:text-accent transition-colors text-sm">✏️</button>
-                  <button onClick={() => onDelete(s.id)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#555] hover:bg-[#ff4f4f]/10 hover:text-[#ff4f4f] transition-colors text-lg leading-none">×</button>
-                </div>
+                {(onEdit || onDelete) && (
+                  <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                    {onEdit && (
+                      <button onClick={() => onEdit(s)}
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#777] hover:bg-accent/10 hover:text-accent transition-colors text-sm">✏️</button>
+                    )}
+                    {onDelete && (
+                      <button onClick={() => onDelete(s.id)}
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1e1e1e] text-[#555] hover:bg-[#ff4f4f]/10 hover:text-[#ff4f4f] transition-colors text-lg leading-none">×</button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
@@ -940,9 +948,10 @@ function HistoryTab({ sessions, onDelete, onEdit, onView }) {
 }
 
 // ─── Main Analytics Page ───────────────────────────────────────────────────────
-export default function AnalyticsPage() {
+export default function AnalyticsPage({ userId, readOnly = false } = {}) {
   const { user }     = useAuth()
   const { settings } = useSettings()
+  const targetUserId = userId ?? user.id
   const [tab, setTab]  = useState(0)
   const [sessions,  setSessions]  = useState([])
   const [allSets,   setAllSets]   = useState([])
@@ -956,11 +965,11 @@ export default function AnalyticsPage() {
   const MUSCLE_GROUPS = ['Chest','Back','Shoulders','Biceps','Triceps','Legs','Glutes','Core']
 
   useEffect(() => {
-    if (!user) return
+    if (!targetUserId) return
     Promise.all([
-      supabase.from('workout_sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(200),
-      supabase.from('session_sets').select('*, workout_sessions!inner(user_id)').eq('workout_sessions.user_id', user.id).order('completed_at').limit(2000),
-      supabase.from('cardio_sessions').select('*, hiit_sets(*)').eq('user_id', user.id).order('date', { ascending: false }).limit(200),
+      supabase.from('workout_sessions').select('*').eq('user_id', targetUserId).order('started_at', { ascending: false }).limit(200),
+      supabase.from('session_sets').select('*, workout_sessions!inner(user_id)').eq('workout_sessions.user_id', targetUserId).order('completed_at').limit(2000),
+      supabase.from('cardio_sessions').select('*, hiit_sets(*)').eq('user_id', targetUserId).order('date', { ascending: false }).limit(200),
     ]).then(([{ data: s }, { data: sets }, { data: c }]) => {
       setSessions(s || [])
       setAllSets(sets || [])
@@ -968,12 +977,12 @@ export default function AnalyticsPage() {
       setLoading(false)
     })
 
-    if (Capacitor.isNativePlatform()) {
+    if (!readOnly && Capacitor.isNativePlatform()) {
       hasPermissions().then(granted => {
         if (granted) readStepsHistory(30).then(h => setStepsHistory(h || {}))
       })
     }
-  }, [user])
+  }, [targetUserId, readOnly])
 
   const deleteSession = async (id) => {
     if (!confirm('Delete this workout log? This cannot be undone.')) return
@@ -1026,19 +1035,26 @@ export default function AnalyticsPage() {
         )}
         {tab === 2 && <ExercisesTab allSets={allSets} />}
         {tab === 3 && <CardioTab cardioSessions={cardio} />}
-        {tab === 4 && <HistoryTab sessions={sessions} onDelete={deleteSession} onEdit={setEditSession} onView={setViewSession} />}
+        {tab === 4 && (
+          <HistoryTab sessions={sessions}
+            onDelete={readOnly ? undefined : deleteSession}
+            onEdit={readOnly ? undefined : setEditSession}
+            onView={setViewSession} />
+        )}
       </div>
 
       <SessionDetailModal
         session={viewSession} open={!!viewSession}
         onClose={() => setViewSession(null)}
-        onEdit={s => { setViewSession(null); setEditSession(s) }}
+        onEdit={readOnly ? undefined : (s => { setViewSession(null); setEditSession(s) })}
       />
-      <EditSessionModal
-        session={editSession} open={!!editSession}
-        onClose={() => setEditSession(null)}
-        onSaved={updated => setSessions(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s))}
-      />
+      {!readOnly && (
+        <EditSessionModal
+          session={editSession} open={!!editSession}
+          onClose={() => setEditSession(null)}
+          onSaved={updated => setSessions(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s))}
+        />
+      )}
     </div>
   )
 }

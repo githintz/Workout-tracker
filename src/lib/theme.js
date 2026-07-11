@@ -30,7 +30,7 @@ export function applyAccent(key) {
 
 export function initTheme() {
   applyAccent(getAccentKey())
-  if (localStorage.getItem('lift_theme') === 'light') {
+  if (localStorage.getItem('lift_theme') !== 'dark') {
     document.documentElement.classList.add('light')
   }
 }
