@@ -29,14 +29,17 @@ create table if not exists day_exercises (
   id                 uuid primary key default uuid_generate_v4(),
   day_id             uuid references workout_days(id) on delete cascade not null,
   exercise_name      text not null,
+  exercise_key       text generated always as (lower(trim(exercise_name))) stored,
   exercise_image_url text,
   muscle_group       text,
   order_index        int not null default 0,
   is_superset        boolean default false,
   superset_group     text,              -- shared UUID string for paired exercises
+  metric             text default 'reps' check (metric in ('reps', 'time')),
   notes              text,
   created_at         timestamptz default now()
 );
+create index if not exists day_exercises_exercise_key_idx on day_exercises (exercise_key);
 
 -- ─── WORKOUT SESSIONS ─────────────────────────────────────────────────────────
 create table if not exists workout_sessions (
@@ -58,14 +61,35 @@ create table if not exists session_sets (
   id                    uuid primary key default uuid_generate_v4(),
   session_id            uuid references workout_sessions(id) on delete cascade not null,
   exercise_name         text not null,
+  exercise_key          text generated always as (lower(trim(exercise_name))) stored,
   set_number            int not null,
   weight                numeric(6,2),
   reps                  int,
+  -- 'time' exercises (planks, dead hangs) log duration_seconds instead of reps
+  metric                text default 'reps' check (metric in ('reps', 'time')),
+  duration_seconds      int,
   superset_partner_name text,
+  partner_key           text generated always as (lower(trim(superset_partner_name))) stored,
   partner_weight        numeric(6,2),
   partner_reps          int,
+  partner_metric        text default 'reps' check (partner_metric in ('reps', 'time')),
+  partner_duration_seconds int,
   completed_at          timestamptz default now()
 );
+create index if not exists session_sets_exercise_key_idx on session_sets (exercise_key);
+create index if not exists session_sets_partner_key_idx  on session_sets (partner_key);
+
+-- ─── SESSION EXERCISE NOTES ───────────────────────────────────────────────────
+-- One free-text note per exercise per session.
+create table if not exists session_exercise_notes (
+  id            uuid primary key default uuid_generate_v4(),
+  session_id    uuid references workout_sessions(id) on delete cascade not null,
+  exercise_name text not null,
+  note          text not null,
+  created_at    timestamptz default now(),
+  unique (session_id, exercise_name)
+);
+create index if not exists session_exercise_notes_session_idx on session_exercise_notes (session_id);
 
 -- ─── CARDIO SESSIONS ──────────────────────────────────────────────────────────
 create table if not exists cardio_sessions (
@@ -146,6 +170,11 @@ create policy "cardio_own" on cardio_sessions for all using (auth.uid() = user_i
 create policy "hiit_own" on hiit_sets for all using (
   exists (select 1 from cardio_sessions c where c.id = cardio_session_id and c.user_id = auth.uid())
 );
+-- Exercise notes: via session
+alter table session_exercise_notes enable row level security;
+create policy "exercise_notes_own" on session_exercise_notes for all using (
+  exists (select 1 from workout_sessions s where s.id = session_id and s.user_id = auth.uid())
+);
 -- Settings: own row
 create policy "settings_own" on user_settings for all using (auth.uid() = user_id);
 -- Feedback: own rows
@@ -174,6 +203,11 @@ create policy "sessions_shared_read" on workout_sessions
     where sa.owner_id = user_id and lower(sa.viewer_email) = lower(auth.jwt() ->> 'email')
   ));
 create policy "sets_shared_read" on session_sets
+  for select using (exists (
+    select 1 from workout_sessions s join shared_access sa on sa.owner_id = s.user_id
+    where s.id = session_id and lower(sa.viewer_email) = lower(auth.jwt() ->> 'email')
+  ));
+create policy "exercise_notes_shared_read" on session_exercise_notes
   for select using (exists (
     select 1 from workout_sessions s join shared_access sa on sa.owner_id = s.user_id
     where s.id = session_id and lower(sa.viewer_email) = lower(auth.jwt() ->> 'email')

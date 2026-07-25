@@ -6,10 +6,12 @@ import { useSettings } from '../contexts/SettingsContext'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { MuscleChip } from '../components/ui/Badge'
+import { MetricToggle } from '../components/ui/MetricToggle'
 import { PageLoader } from '../components/ui/Spinner'
 import { format, parseISO } from 'date-fns'
 import { writeWorkoutSession } from '../lib/healthConnect'
 import { getAccent } from '../lib/theme'
+import { exerciseKey, canonicalName, formatDuration, setDisplayValue, partnerDisplayValue } from '../lib/exercises'
 
 // ─── beep via Web Audio ────────────────────────────────────────────────────────
 function playBeep() {
@@ -25,6 +27,28 @@ function playBeep() {
       osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + 0.3)
     })
   } catch (_) {}
+}
+
+// Blank means "not logged"; 0 is a real value (bodyweight, assisted reps), so
+// these deliberately avoid the `parseFloat(x) || null` shorthand.
+const hasValue  = (v) => String(v ?? '').trim() !== ''
+const numOrNull = (v) => {
+  if (!hasValue(v)) return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function NoteButton({ note, onClick }) {
+  return (
+    <button onClick={onClick}
+      className={`h-7 px-2.5 rounded-full text-xs font-medium shrink-0 transition-colors border ${
+        note ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-[#1e1e1e] border-[#2e2e2e] text-[#666]'
+      }`}
+      aria-label={note ? 'Edit note' : 'Add note'}
+    >
+      📝 {note ? 'Note' : 'Add note'}
+    </button>
+  )
 }
 
 // ─── Rest Timer ring (display only — state lives in TrackPage) ─────────────────
@@ -60,43 +84,60 @@ function RestTimerRing({ remaining, total, running, onAddTime, onToggle, onSkip 
 }
 
 // ─── Exercise History Modal ───────────────────────────────────────────────────
+const HISTORY_COLS = 'session_id, set_number, weight, reps, metric, duration_seconds, ' +
+  'partner_weight, partner_reps, partner_metric, partner_duration_seconds, ' +
+  'completed_at, superset_partner_name, workout_sessions(started_at, day_title)'
+
 function ExerciseHistoryModal({ name, unit, open, onClose }) {
   const [rows, setRows]     = useState([])
+  const [notes, setNotes]   = useState({})   // session_id => note
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!open || !name) return
     setLoading(true)
+    const key = exerciseKey(name)
     Promise.all([
-      supabase.from('session_sets')
-        .select('set_number, weight, reps, partner_weight, partner_reps, completed_at, superset_partner_name, workout_sessions(started_at, day_title)')
-        .eq('exercise_name', name)
+      supabase.from('session_sets').select(HISTORY_COLS)
+        .eq('exercise_key', key)
         .order('completed_at', { ascending: false })
         .limit(60),
-      supabase.from('session_sets')
-        .select('set_number, weight, reps, partner_weight, partner_reps, completed_at, superset_partner_name, workout_sessions(started_at, day_title)')
-        .eq('superset_partner_name', name)
+      supabase.from('session_sets').select(HISTORY_COLS)
+        .eq('partner_key', key)
         .order('completed_at', { ascending: false })
         .limit(60),
-    ]).then(([{ data: primary }, { data: partner }]) => {
-      const p1 = (primary || []).map(s => ({ ...s, _w: s.weight, _r: s.reps }))
-      const p2 = (partner || []).map(s => ({ ...s, _w: s.partner_weight, _r: s.partner_reps }))
+      // ilike with no wildcards is a case-insensitive exact match
+      supabase.from('session_exercise_notes').select('session_id, note')
+        .ilike('exercise_name', name)
+        .limit(60),
+    ]).then(([{ data: primary }, { data: partner }, { data: noteRows }]) => {
+      const p1 = (primary || []).map(s => ({
+        ...s, _w: s.weight, _r: s.reps, _metric: s.metric, _dur: s.duration_seconds,
+      }))
+      const p2 = (partner || []).map(s => ({
+        ...s, _w: s.partner_weight, _r: s.partner_reps,
+        _metric: s.partner_metric, _dur: s.partner_duration_seconds,
+      }))
       const combined = [...p1, ...p2]
-        .filter(s => s._w || s._r)
+        .filter(s => s._w || s._r || s._dur)
         .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
       setRows(combined)
+      setNotes(Object.fromEntries((noteRows || []).map(n => [n.session_id, n.note])))
       setLoading(false)
     })
   }, [open, name])
 
   const byDate = rows.reduce((acc, s) => {
     const key = format(parseISO(s.workout_sessions?.started_at || s.completed_at), 'EEE, MMM d')
-    if (!acc[key]) acc[key] = []
-    acc[key].push(s)
+    if (!acc[key]) acc[key] = { sets: [], note: null }
+    acc[key].sets.push(s)
+    if (!acc[key].note && notes[s.session_id]) acc[key].note = notes[s.session_id]
     return acc
   }, {})
 
   const maxWeight = rows.reduce((m, s) => s._w ? Math.max(m, +s._w) : m, 0)
+  const maxDur    = rows.reduce((m, s) => s._dur ? Math.max(m, +s._dur) : m, 0)
+  const isTime    = rows.length > 0 && rows.every(s => s._metric === 'time')
   const sessions  = Object.keys(byDate).length
 
   return (
@@ -109,7 +150,12 @@ function ExerciseHistoryModal({ name, unit, open, onClose }) {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              {maxWeight > 0 && (
+              {isTime && maxDur > 0 ? (
+                <div className="bg-[#1a1a1a] rounded-2xl p-3 text-center">
+                  <p className="text-accent text-2xl font-bold">{formatDuration(maxDur)}</p>
+                  <p className="text-[#555] text-xs mt-0.5">longest hold</p>
+                </div>
+              ) : maxWeight > 0 && (
                 <div className="bg-[#1a1a1a] rounded-2xl p-3 text-center">
                   <p className="text-accent text-2xl font-bold">{maxWeight}</p>
                   <p className="text-[#555] text-xs mt-0.5">{unit} best</p>
@@ -121,7 +167,7 @@ function ExerciseHistoryModal({ name, unit, open, onClose }) {
               </div>
             </div>
 
-            {Object.entries(byDate).slice(0, 8).map(([date, sets]) => (
+            {Object.entries(byDate).slice(0, 8).map(([date, { sets, note }]) => (
               <div key={date} className="flex flex-col gap-1">
                 <p className="text-[#555] text-xs font-medium uppercase tracking-wide">{date}</p>
                 {sets.map((s, i) => (
@@ -129,9 +175,16 @@ function ExerciseHistoryModal({ name, unit, open, onClose }) {
                     <span className="text-[#444] text-xs w-5 text-center">{s.set_number}</span>
                     <span className="text-white text-sm font-semibold flex-1">{s._w ?? '—'}<span className="text-[#444] font-normal text-xs ml-0.5">{unit}</span></span>
                     <span className="text-[#555] text-xs">×</span>
-                    <span className="text-white text-sm font-semibold flex-1 text-right">{s._r ?? '—'}<span className="text-[#444] font-normal text-xs ml-0.5">reps</span></span>
+                    {s._metric === 'time' ? (
+                      <span className="text-white text-sm font-semibold flex-1 text-right">{formatDuration(s._dur)}</span>
+                    ) : (
+                      <span className="text-white text-sm font-semibold flex-1 text-right">{s._r ?? '—'}<span className="text-[#444] font-normal text-xs ml-0.5">reps</span></span>
+                    )}
                   </div>
                 ))}
+                {note && (
+                  <p className="text-[#777] text-xs bg-[#161616] rounded-xl px-3 py-2 italic">📝 {note}</p>
+                )}
               </div>
             ))}
           </>
@@ -142,7 +195,11 @@ function ExerciseHistoryModal({ name, unit, open, onClose }) {
 }
 
 // ─── Set Entry Row ─────────────────────────────────────────────────────────────
-function SetRow({ setNum, weight, reps, onChange, onRemove, onToggleLock, locked, unit }) {
+// `reps` carries the second number for both metrics — seconds when metric is
+// 'time'. Keeping one field name means in-flight workouts saved to localStorage
+// under the old shape still restore cleanly.
+function SetRow({ setNum, weight, reps, onChange, onRemove, onToggleLock, locked, unit, metric = 'reps' }) {
+  const isTime = metric === 'time'
   if (locked) {
     return (
       <div className="flex items-center gap-2.5 bg-[#161616] border border-[#4fdf7c]/10 rounded-2xl px-3 h-14">
@@ -155,8 +212,10 @@ function SetRow({ setNum, weight, reps, onChange, onRemove, onToggleLock, locked
         </div>
         <div className="w-px h-5 bg-[#222] shrink-0" />
         <div className="flex-1 flex items-center justify-center gap-1">
-          <span className="text-white text-lg font-semibold">{reps || '—'}</span>
-          <span className="text-[#444] text-xs">reps</span>
+          <span className="text-white text-lg font-semibold">
+            {isTime ? formatDuration(reps) : (reps || '—')}
+          </span>
+          {!isTime && <span className="text-[#444] text-xs">reps</span>}
         </div>
         <button onClick={onToggleLock}
           className="w-8 h-8 flex items-center justify-center text-[#383838] hover:text-[#666] transition-colors shrink-0 text-sm">
@@ -182,6 +241,7 @@ function SetRow({ setNum, weight, reps, onChange, onRemove, onToggleLock, locked
         placeholder="0" inputMode="numeric"
         className="flex-1 min-w-0 h-10 bg-transparent text-white text-center text-lg font-semibold focus:outline-none placeholder:text-[#333]"
       />
+      {isTime && <span className="text-[#333] text-xs shrink-0">s</span>}
       <button onClick={onToggleLock}
         className="w-8 h-8 flex items-center justify-center rounded-full bg-[#4fdf7c]/10 text-[#4fdf7c] hover:bg-[#4fdf7c]/20 transition-colors shrink-0">
         ✓
@@ -193,8 +253,10 @@ function SetRow({ setNum, weight, reps, onChange, onRemove, onToggleLock, locked
 }
 
 // ─── Superset Entry ────────────────────────────────────────────────────────────
-function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }) {
+function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick, notes, onNoteClick }) {
   const [A, B] = pair
+  const metricA = A.metric || 'reps'
+  const metricB = B.metric || 'reps'
 
   const addSet = () => {
     const last = sets[sets.length - 1]
@@ -214,14 +276,16 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
     <div className="flex flex-col gap-2">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex flex-col gap-0.5 flex-1">
+        <div className="flex flex-col gap-1 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-accent text-xs font-bold">A</span>
-            <button onClick={() => onNameClick(A.exercise_name)} className="text-white text-sm font-medium hover:text-accent transition-colors text-left">{A.exercise_name}</button>
+            <button onClick={() => onNameClick(A.exercise_name)} className="text-white text-sm font-medium hover:text-accent transition-colors text-left flex-1">{A.exercise_name}</button>
+            <NoteButton note={notes?.[A.exercise_name]} onClick={() => onNoteClick(A.exercise_name)} />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-accent text-xs font-bold">B</span>
-            <button onClick={() => onNameClick(B.exercise_name)} className="text-white text-sm font-medium hover:text-accent transition-colors text-left">{B.exercise_name}</button>
+            <button onClick={() => onNameClick(B.exercise_name)} className="text-white text-sm font-medium hover:text-accent transition-colors text-left flex-1">{B.exercise_name}</button>
+            <NoteButton note={notes?.[B.exercise_name]} onClick={() => onNoteClick(B.exercise_name)} />
           </div>
         </div>
         <span className="text-accent text-xs font-bold bg-accent/10 px-2 h-5 rounded-full flex items-center">Superset</span>
@@ -233,8 +297,8 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
           <span className="text-[#555] text-xs font-medium">Previous:</span>
           {prevSets.map((p, i) => (
             <span key={i} className="text-[#777] text-xs">
-              Set {p.set_number}: <span className="text-[#aaa] font-medium">{p.weight}{unit} × {p.reps}</span>
-              {p.partner_weight != null && <span className="text-[#666]"> / {p.partner_weight}{unit} × {p.partner_reps}</span>}
+              Set {p.set_number}: <span className="text-[#aaa] font-medium">{p.weight}{unit} × {setDisplayValue(p)}</span>
+              {p.partner_weight != null && <span className="text-[#666]"> / {p.partner_weight}{unit} × {partnerDisplayValue(p)}</span>}
             </span>
           ))}
         </div>
@@ -245,7 +309,7 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
         <span className="w-6" />
         <span className="flex-1 text-center text-[#555] text-xs">Weight</span>
         <span className="w-5" />
-        <span className="flex-1 text-center text-[#555] text-xs">Reps</span>
+        <span className="flex-1 text-center text-[#555] text-xs">Reps / time</span>
         <span className="w-8" /><span className="w-8" />
       </div>
 
@@ -253,7 +317,7 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
       <div className="bg-accent/5 rounded-2xl p-2 flex flex-col gap-1.5">
         <p className="text-accent text-xs font-bold px-1">A — {A.exercise_name}</p>
         {sets.map((s, i) => (
-          <SetRow key={s.id} setNum={i + 1} weight={s.weightA} reps={s.repsA} unit={unit}
+          <SetRow key={s.id} setNum={i + 1} weight={s.weightA} reps={s.repsA} unit={unit} metric={metricA}
             locked={s.locked}
             onChange={(f, v) => updateSet(i, f === 'weight' ? 'weightA' : 'repsA', v)}
             onRemove={() => removeSet(i)}
@@ -265,7 +329,7 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
       <div className="bg-accent/5 rounded-2xl p-2 flex flex-col gap-1.5">
         <p className="text-accent text-xs font-bold px-1">B — {B.exercise_name}</p>
         {sets.map((s, i) => (
-          <SetRow key={s.id + 'b'} setNum={i + 1} weight={s.weightB} reps={s.repsB} unit={unit}
+          <SetRow key={s.id + 'b'} setNum={i + 1} weight={s.weightB} reps={s.repsB} unit={unit} metric={metricB}
             locked={s.locked}
             onChange={(f, v) => updateSet(i, f === 'weight' ? 'weightB' : 'repsB', v)}
             onRemove={() => removeSet(i)}
@@ -279,7 +343,8 @@ function SupersetEntry({ pair, sets, onSetsChange, unit, prevSets, onNameClick }
 }
 
 // ─── Single Exercise Entry ─────────────────────────────────────────────────────
-function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets, onNameClick }) {
+function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets, onNameClick, note, onNoteClick }) {
+  const metric = exercise.metric || 'reps'
   const addSet = () => {
     const last = sets[sets.length - 1]
     onSetsChange([...sets, { id: crypto.randomUUID(), weight: last?.weight || '', reps: last?.reps || '', locked: false }])
@@ -290,10 +355,20 @@ function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets, onNameCli
 
   return (
     <div className="flex flex-col gap-2">
-      <button onClick={() => onNameClick(exercise.exercise_name)} className="text-white font-bold text-base text-left hover:text-accent transition-colors">
-        {exercise.exercise_name}
-      </button>
+      <div className="flex items-start gap-2">
+        <button onClick={() => onNameClick(exercise.exercise_name)} className="text-white font-bold text-base text-left hover:text-accent transition-colors flex-1">
+          {exercise.exercise_name}
+        </button>
+        <NoteButton note={note} onClick={() => onNoteClick(exercise.exercise_name)} />
+      </div>
       {exercise.muscle_group && <p className="text-[#444] text-xs -mt-1">{exercise.muscle_group}</p>}
+
+      {note && (
+        <button onClick={() => onNoteClick(exercise.exercise_name)}
+          className="bg-[#1a1a1a] rounded-2xl px-3 py-2 text-left">
+          <span className="text-[#777] text-xs italic">📝 {note}</span>
+        </button>
+      )}
 
       {/* Previous workout row */}
       {prevSets?.length > 0 && (
@@ -301,7 +376,7 @@ function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets, onNameCli
           <span className="text-[#555] text-xs font-medium w-full">Previous:</span>
           {prevSets.map((p, i) => (
             <span key={i} className="text-[#777] text-xs">
-              Set {p.set_number}: <span className="text-[#aaa] font-medium">{p.weight}{unit} × {p.reps}</span>
+              Set {p.set_number}: <span className="text-[#aaa] font-medium">{p.weight}{unit} × {setDisplayValue(p)}</span>
             </span>
           ))}
         </div>
@@ -311,12 +386,12 @@ function ExerciseEntry({ exercise, sets, onSetsChange, unit, prevSets, onNameCli
         <span className="w-7" />
         <span className="flex-1 text-center text-[#383838] text-xs">Weight</span>
         <span className="w-4" />
-        <span className="flex-1 text-center text-[#383838] text-xs">Reps</span>
+        <span className="flex-1 text-center text-[#383838] text-xs">{metric === 'time' ? 'Seconds' : 'Reps'}</span>
         <span className="w-16" />
       </div>
 
       {sets.map((s, i) => (
-        <SetRow key={s.id} setNum={i + 1} weight={s.weight} reps={s.reps} unit={unit}
+        <SetRow key={s.id} setNum={i + 1} weight={s.weight} reps={s.reps} unit={unit} metric={metric}
           locked={s.locked}
           onChange={(f, v) => updateSet(i, f, v)}
           onRemove={() => removeSet(i)}
@@ -347,7 +422,8 @@ export default function TrackPage() {
   const [elapsed, setElapsed]     = useState(0)
   const startTimeRef = useRef(null)
   const [sets, setSets]           = useState({})    // exerciseId/supersetGroup => sets[]
-  const [prevSetsMap, setPrevSetsMap] = useState({}) // exercise_name => session_sets[]
+  const [notes, setNotes]         = useState({})    // exercise_name => note text
+  const [prevSetsMap, setPrevSetsMap] = useState({}) // exercise_key => session_sets[]
   const [activeExIdx, setActiveExIdx] = useState(0)
   const [showTimer, setShowTimer]     = useState(false)
   const [restRemaining, setRestRemaining] = useState(0)
@@ -360,7 +436,10 @@ export default function TrackPage() {
   const [finishing, setFinishing] = useState(false)
   const [showAddEx, setShowAddEx]   = useState(false)
   const [customExName, setCustomExName] = useState('')
+  const [customExMetric, setCustomExMetric] = useState('reps')
   const [exHistory, setExHistory]   = useState(null)  // exercise name string
+  const [noteFor, setNoteFor]       = useState(null)  // exercise name string
+  const [noteDraft, setNoteDraft]   = useState('')
 
   const elapsedRef = useRef()
 
@@ -371,12 +450,12 @@ export default function TrackPage() {
     if (phase === 'active' && session) {
       localStorage.setItem('lift_workout', JSON.stringify({
         phase, sessionId: session.id, startTimeMs: startTimeRef.current,
-        selectedDay, exercises, sets, activeExIdx,
+        selectedDay, exercises, sets, notes, activeExIdx,
       }))
     } else if (phase === 'done' || phase === 'select') {
       localStorage.removeItem('lift_workout')
     }
-  }, [phase, sets, activeExIdx])
+  }, [phase, sets, notes, activeExIdx])
 
   useEffect(() => {
     if (phase !== 'active') return
@@ -434,6 +513,7 @@ export default function TrackPage() {
         setSelectedDay(w.selectedDay)
         setExercises(w.exercises)
         setSets(w.sets)
+        setNotes(w.notes || {})
         setActiveExIdx(w.activeExIdx || 0)
         setSession({ id: w.sessionId })
         setPhase('active')
@@ -471,10 +551,12 @@ export default function TrackPage() {
         .select('*')
         .eq('session_id', prevSess.id)
         .order('set_number')
+      // Keyed on the folded name so a differently cased log still matches
       const map = {}
       for (const row of ps || []) {
-        if (!map[row.exercise_name]) map[row.exercise_name] = []
-        map[row.exercise_name].push(row)
+        const k = exerciseKey(row.exercise_name)
+        if (!map[k]) map[k] = []
+        map[k].push(row)
       }
       setPrevSetsMap(map)
     }
@@ -514,16 +596,44 @@ export default function TrackPage() {
     setPhase('active')
   }
 
-  const addCustomExercise = () => {
-    const name = customExName.trim()
-    if (!name) return
+  const addCustomExercise = async () => {
+    const typed = customExName.trim()
+    if (!typed) return
+
+    // Reuse the spelling already in history so analytics keeps treating this as
+    // the same exercise, falling back to the bundled library, then to what was
+    // typed.
+    const { data: seen } = await supabase.from('session_sets')
+      .select('exercise_name')
+      .eq('exercise_key', exerciseKey(typed))
+      .limit(1)
+      .maybeSingle()
+    const name = canonicalName(typed, seen ? [seen.exercise_name] : [])
+
     const id = crypto.randomUUID()
-    const newEx = { id, exercise_name: name, is_superset: false, order_index: exercises.length, muscle_group: null }
+    const newEx = {
+      id, exercise_name: name, is_superset: false,
+      order_index: exercises.length, muscle_group: null, metric: customExMetric,
+    }
     setExercises(prev => [...prev, newEx])
     setSets(prev => ({ ...prev, [id]: [{ id: crypto.randomUUID(), weight: '', reps: '', locked: false }] }))
     setActiveExIdx(grouped.length)  // grouped.length is the current count, new ex goes there
     setCustomExName('')
+    setCustomExMetric('reps')
     setShowAddEx(false)
+  }
+
+  const openNote = (name) => { setNoteFor(name); setNoteDraft(notes[name] || '') }
+  const saveNote = () => {
+    const text = noteDraft.trim()
+    setNotes(prev => {
+      const next = { ...prev }
+      if (text) next[noteFor] = text
+      else delete next[noteFor]
+      return next
+    })
+    setNoteFor(null)
+    setNoteDraft('')
   }
 
   const finishWorkout = async () => {
@@ -555,29 +665,45 @@ export default function TrackPage() {
           seen.add(ex.superset_group)
           const pair = exercises.filter(e => e.superset_group === ex.superset_group)
           const [A, B] = pair
+          const mA = A.metric || 'reps', mB = B.metric || 'reps'
           const ss = sets[ex.superset_group] || []
           ss.forEach((s, i) => {
-            if (s.repsA || s.weightA) rows.push({
+            if (hasValue(s.repsA) || hasValue(s.weightA)) rows.push({
               session_id: session.id, exercise_name: A.exercise_name,
-              set_number: i + 1, weight: parseFloat(s.weightA) || null,
-              reps: parseInt(s.repsA) || null,
+              set_number: i + 1, weight: numOrNull(s.weightA),
+              metric: mA,
+              reps:             mA === 'time' ? null : numOrNull(s.repsA),
+              duration_seconds: mA === 'time' ? numOrNull(s.repsA) : null,
               superset_partner_name: B.exercise_name,
-              partner_weight: parseFloat(s.weightB) || null,
-              partner_reps: parseInt(s.repsB) || null,
+              partner_weight: numOrNull(s.weightB),
+              partner_metric: mB,
+              partner_reps:             mB === 'time' ? null : numOrNull(s.repsB),
+              partner_duration_seconds: mB === 'time' ? numOrNull(s.repsB) : null,
             })
           })
         } else {
+          const m = ex.metric || 'reps'
           const exSets = sets[ex.id] || []
           exSets.forEach((s, i) => {
-            if (s.reps || s.weight) rows.push({
+            if (hasValue(s.reps) || hasValue(s.weight)) rows.push({
               session_id: session.id, exercise_name: ex.exercise_name,
-              set_number: i + 1, weight: parseFloat(s.weight) || null,
-              reps: parseInt(s.reps) || null,
+              set_number: i + 1, weight: numOrNull(s.weight),
+              metric: m,
+              reps:             m === 'time' ? null : numOrNull(s.reps),
+              duration_seconds: m === 'time' ? numOrNull(s.reps) : null,
             })
           })
         }
       }
       if (rows.length > 0) await supabase.from('session_sets').insert(rows)
+
+      const noteRows = Object.entries(notes)
+        .map(([exercise_name, note]) => ({ session_id: session.id, exercise_name, note: (note || '').trim() }))
+        .filter(n => n.note)
+      if (noteRows.length > 0) {
+        await supabase.from('session_exercise_notes')
+          .upsert(noteRows, { onConflict: 'session_id,exercise_name' })
+      }
     }
 
     localStorage.removeItem('lift_workout')
@@ -680,8 +806,10 @@ export default function TrackPage() {
               sets={sets[item.key] || []}
               onSetsChange={s => setSets(prev => ({ ...prev, [item.key]: s }))}
               unit={unit}
-              prevSets={prevSetsMap[item.pair[0].exercise_name] || []}
+              prevSets={prevSetsMap[exerciseKey(item.pair[0].exercise_name)] || []}
               onNameClick={setExHistory}
+              notes={notes}
+              onNoteClick={openNote}
             />
           ) : item?.type === 'exercise' ? (
             <ExerciseEntry
@@ -689,8 +817,10 @@ export default function TrackPage() {
               sets={sets[item.key] || []}
               onSetsChange={s => setSets(prev => ({ ...prev, [item.key]: s }))}
               unit={unit}
-              prevSets={prevSetsMap[item.ex.exercise_name] || []}
+              prevSets={prevSetsMap[exerciseKey(item.ex.exercise_name)] || []}
               onNameClick={setExHistory}
+              note={notes[item.ex.exercise_name]}
+              onNoteClick={openNote}
             />
           ) : null}
         </div>
@@ -741,6 +871,7 @@ export default function TrackPage() {
                 className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
                   placeholder:text-[#444] focus:outline-none focus:border-accent/50 w-full"
               />
+              <MetricToggle value={customExMetric} onChange={setCustomExMetric} />
               <Button size="lg" className="w-full" onClick={addCustomExercise} disabled={!customExName.trim()}>
                 Add to Workout
               </Button>
@@ -761,6 +892,25 @@ export default function TrackPage() {
           name={exHistory} unit={unit}
           open={!!exHistory} onClose={() => setExHistory(null)}
         />
+
+        {/* Per-exercise note */}
+        <Modal open={!!noteFor} onClose={() => setNoteFor(null)} title={`Note — ${noteFor || ''}`}>
+          <div className="flex flex-col gap-4">
+            <textarea
+              value={noteDraft}
+              onChange={e => setNoteDraft(e.target.value)}
+              rows={4}
+              autoFocus
+              placeholder="How did it feel? Form cues, niggles, what to try next time…"
+              className="px-4 py-3 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
+                placeholder:text-[#444] focus:outline-none focus:border-accent/50 resize-none w-full"
+            />
+            <p className="text-[#555] text-xs -mt-2">Saved with the workout and shown next time you train this exercise.</p>
+            <Button size="lg" className="w-full" onClick={saveNote}>
+              {noteDraft.trim() ? 'Save Note' : 'Clear Note'}
+            </Button>
+          </div>
+        </Modal>
       </div>
     )
   }

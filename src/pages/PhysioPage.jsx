@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageLoader } from '../components/ui/Spinner'
 import { format, parseISO } from 'date-fns'
+import { setDisplayValue, partnerDisplayValue } from '../lib/exercises'
 
 function formatDur(secs) {
   if (!secs) return null
@@ -15,14 +16,20 @@ function formatDur(secs) {
 function SessionCard({ session }) {
   const [open, setOpen] = useState(false)
   const [sets, setSets] = useState(null)
+  const [notes, setNotes] = useState({})   // exercise_name => note
 
   async function toggle() {
     const next = !open
     setOpen(next)
     if (next && sets === null) {
-      const { data } = await supabase.from('session_sets').select('*')
-        .eq('session_id', session.id).order('exercise_name').order('set_number')
+      const [{ data }, { data: noteRows }] = await Promise.all([
+        supabase.from('session_sets').select('*')
+          .eq('session_id', session.id).order('exercise_name').order('set_number'),
+        supabase.from('session_exercise_notes').select('exercise_name, note')
+          .eq('session_id', session.id),
+      ])
       setSets(data || [])
+      setNotes(Object.fromEntries((noteRows || []).map(n => [n.exercise_name, n.note])))
     }
   }
 
@@ -68,10 +75,13 @@ function SessionCard({ session }) {
                 {g.sets.map((s, si) => (
                   <p key={si} className="text-[#aaa] text-sm">
                     <span className="text-[#555] text-xs mr-2">#{s.set_number}</span>
-                    {s.weight ?? '—'}kg × {s.reps ?? '—'}
-                    {s.superset_partner_name && <span className="text-[#777]"> · partner {s.partner_weight ?? '—'}kg × {s.partner_reps ?? '—'}</span>}
+                    {s.weight ?? '—'}kg × {setDisplayValue(s)}
+                    {s.superset_partner_name && <span className="text-[#777]"> · partner {s.partner_weight ?? '—'}kg × {partnerDisplayValue(s)}</span>}
                   </p>
                 ))}
+                {notes[g.name] && (
+                  <p className="text-[#777] text-xs italic mt-1">📝 {notes[g.name]}</p>
+                )}
               </div>
             </div>
           ))}

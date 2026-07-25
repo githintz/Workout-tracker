@@ -6,9 +6,10 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
-import { MUSCLE_GROUPS, searchExercises } from '../lib/exercises'
+import { MetricToggle } from '../components/ui/MetricToggle'
+import { MUSCLE_GROUPS, searchExercises, canonicalName } from '../lib/exercises'
 
-function ExerciseSearch({ onSelect }) {
+function ExerciseSearch({ onSelect, knownNames = [] }) {
   const [query, setQuery]   = useState('')
   const [results, setResults] = useState([])
   const [open, setOpen]     = useState(false)
@@ -35,10 +36,11 @@ function ExerciseSearch({ onSelect }) {
               <span className="text-[#555] text-xs ml-auto">{ex.muscle}</span>
             </button>
           ))}
-          <button onMouseDown={() => pick({ name: query, muscle: '' })}
+          {/* Snap to an existing spelling so analytics keeps this as one exercise */}
+          <button onMouseDown={() => pick({ name: canonicalName(query, knownNames), muscle: '' })}
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#2a2a2a] text-left border-t border-[#2e2e2e]">
             <div className="w-9 h-9 rounded-xl bg-[#2e2e2e] flex items-center justify-center text-sm shrink-0">✏️</div>
-            <span className="text-accent text-sm">Add "{query}" as custom</span>
+            <span className="text-accent text-sm">Add "{canonicalName(query, knownNames)}" as custom</span>
           </button>
         </div>
       )}
@@ -46,7 +48,7 @@ function ExerciseSearch({ onSelect }) {
   )
 }
 
-function SupersetAdder({ onAdd }) {
+function SupersetAdder({ onAdd, knownNames = [] }) {
   const [open, setOpen]   = useState(false)
   const [nameA, setNameA] = useState('')
   const [nameB, setNameB] = useState('')
@@ -68,9 +70,9 @@ function SupersetAdder({ onAdd }) {
   return (
     <div className="mt-2 bg-[#1a1a1a] border border-accent/20 rounded-2xl p-4 flex flex-col gap-3">
       <p className="text-accent text-xs font-bold uppercase">Superset</p>
-      <ExerciseSearch onSelect={ex => setNameA(ex.name)} placeholder="Exercise A…" />
+      <ExerciseSearch onSelect={ex => setNameA(ex.name)} knownNames={knownNames} />
       {nameA && <p className="text-white text-sm">A: {nameA}</p>}
-      <ExerciseSearch onSelect={ex => setNameB(ex.name)} placeholder="Exercise B…" />
+      <ExerciseSearch onSelect={ex => setNameB(ex.name)} knownNames={knownNames} />
       {nameB && <p className="text-white text-sm">B: {nameB}</p>}
       <div className="flex gap-2">
         <Button size="sm" variant="accent" onClick={commit} disabled={!nameA || !nameB}>Add Superset</Button>
@@ -101,6 +103,7 @@ export default function PlanEditPage() {
       exercises: (day.day_exercises || []).sort((a,b)=>a.order_index-b.order_index).map(e => ({
         id: e.id, name: e.exercise_name, muscle: e.muscle_group,
         is_superset: e.is_superset, superset_group: e.superset_group,
+        metric: e.metric || 'reps',
       }))
     }))
     setDays(enriched)
@@ -115,7 +118,7 @@ export default function PlanEditPage() {
   }
 
   const addExercise = (i, ex) => {
-    const exObj = { id: crypto.randomUUID(), name: ex.name, muscle: ex.muscle, is_superset: false, superset_group: null }
+    const exObj = { id: crypto.randomUUID(), name: ex.name, muscle: ex.muscle, is_superset: false, superset_group: null, metric: 'reps' }
     updateDayField(i, 'exercises', [...days[i].exercises, exObj])
   }
 
@@ -123,10 +126,13 @@ export default function PlanEditPage() {
     const gid = crypto.randomUUID()
     updateDayField(i, 'exercises', [
       ...days[i].exercises,
-      { id: crypto.randomUUID(), name: nameA, muscle: '', is_superset: true, superset_group: gid },
-      { id: crypto.randomUUID(), name: nameB, muscle: '', is_superset: true, superset_group: gid },
+      { id: crypto.randomUUID(), name: nameA, muscle: '', is_superset: true, superset_group: gid, metric: 'reps' },
+      { id: crypto.randomUUID(), name: nameB, muscle: '', is_superset: true, superset_group: gid, metric: 'reps' },
     ])
   }
+
+  const setMetric = (i, exId, metric) =>
+    updateDayField(i, 'exercises', days[i].exercises.map(e => e.id === exId ? { ...e, metric } : e))
 
   const removeExercise = (i, exId) => {
     const ex = days[i].exercises.find(e => e.id === exId)
@@ -147,6 +153,7 @@ export default function PlanEditPage() {
         await supabase.from('day_exercises').insert(day.exercises.map((ex, idx) => ({
           day_id: day.id, exercise_name: ex.name, muscle_group: ex.muscle,
           order_index: idx, is_superset: ex.is_superset, superset_group: ex.superset_group,
+          metric: ex.metric || 'reps',
         })))
       }
     }
@@ -157,6 +164,7 @@ export default function PlanEditPage() {
   if (loading) return <PageLoader />
 
   const day = days[activeDay]
+  const knownNames = days.flatMap(d => d.exercises.map(e => e.name))
 
   return (
     <div className="flex flex-col min-h-dvh">
@@ -195,17 +203,20 @@ export default function PlanEditPage() {
             <p className="text-[#777] text-sm font-medium mb-2">Exercises</p>
             <div className="flex flex-col gap-2 mb-3">
               {day.exercises.map(ex => (
-                <div key={ex.id} className={`bg-[#1a1a1a] border ${ex.is_superset ? 'border-accent/20' : 'border-[#2e2e2e]'} rounded-2xl px-4 py-3 flex items-center justify-between`}>
-                  <div>
+                <div key={ex.id} className={`bg-[#1a1a1a] border ${ex.is_superset ? 'border-accent/20' : 'border-[#2e2e2e]'} rounded-2xl px-4 py-3 flex items-center justify-between gap-3`}>
+                  <div className="min-w-0">
                     {ex.is_superset && <span className="text-accent text-xs font-bold uppercase mr-2">SS</span>}
                     <span className="text-white text-sm">{ex.name}</span>
                   </div>
-                  <button onClick={() => removeExercise(activeDay, ex.id)} className="text-[#555] hover:text-[#ff4f4f] text-lg">×</button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <MetricToggle size="sm" value={ex.metric || 'reps'} onChange={m => setMetric(activeDay, ex.id, m)} />
+                    <button onClick={() => removeExercise(activeDay, ex.id)} className="text-[#555] hover:text-[#ff4f4f] text-lg">×</button>
+                  </div>
                 </div>
               ))}
             </div>
-            <ExerciseSearch onSelect={ex => addExercise(activeDay, ex)} />
-            <SupersetAdder onAdd={(a, b) => addSuperset(activeDay, a, b)} />
+            <ExerciseSearch onSelect={ex => addExercise(activeDay, ex)} knownNames={knownNames} />
+            <SupersetAdder onAdd={(a, b) => addSuperset(activeDay, a, b)} knownNames={knownNames} />
           </div>
         </div>
       )}

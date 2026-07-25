@@ -7,10 +7,11 @@ import { Input, NumberInput } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
 import { MuscleChip } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
-import { MUSCLE_GROUPS, searchExercises } from '../lib/exercises'
+import { MetricToggle } from '../components/ui/MetricToggle'
+import { MUSCLE_GROUPS, searchExercises, canonicalName } from '../lib/exercises'
 
 // ─── Exercise Search ───────────────────────────────────────────────────────────
-function ExerciseSearch({ onSelect, placeholder = 'Search exercises…' }) {
+function ExerciseSearch({ onSelect, placeholder = 'Search exercises…', knownNames = [] }) {
   const [query, setQuery]   = useState('')
   const [results, setResults] = useState([])
   const [open, setOpen]     = useState(false)
@@ -56,12 +57,13 @@ function ExerciseSearch({ onSelect, placeholder = 'Search exercises…' }) {
               </div>
             </button>
           ))}
+          {/* Snap to an existing spelling so analytics keeps this as one exercise */}
           <button
-            onMouseDown={() => pick({ name: query, muscle: '', img: null })}
+            onMouseDown={() => pick({ name: canonicalName(query, knownNames), muscle: '', img: null })}
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#2a2a2a] text-left transition-colors border-t border-[#2e2e2e]"
           >
             <div className="w-9 h-9 rounded-xl bg-[#2e2e2e] flex items-center justify-center text-sm shrink-0">✏️</div>
-            <p className="text-accent text-sm">Add "{query}" as custom</p>
+            <p className="text-accent text-sm">Add "{canonicalName(query, knownNames)}" as custom</p>
           </button>
         </div>
       )}
@@ -76,7 +78,7 @@ function DayEditor({ day, onChange }) {
   const [ssB, setSsB] = useState('')
 
   const addExercise = (ex) => {
-    onChange({ ...day, exercises: [...day.exercises, { id: crypto.randomUUID(), name: ex.name, muscle: ex.muscle, is_superset: false, superset_group: null }] })
+    onChange({ ...day, exercises: [...day.exercises, { id: crypto.randomUUID(), name: ex.name, muscle: ex.muscle, is_superset: false, superset_group: null, metric: 'reps' }] })
   }
 
   const addSuperset = () => {
@@ -86,12 +88,15 @@ function DayEditor({ day, onChange }) {
       ...day,
       exercises: [
         ...day.exercises,
-        { id: crypto.randomUUID(), name: ssA, muscle: '', is_superset: true, superset_group: gid },
-        { id: crypto.randomUUID(), name: ssB, muscle: '', is_superset: true, superset_group: gid },
+        { id: crypto.randomUUID(), name: ssA, muscle: '', is_superset: true, superset_group: gid, metric: 'reps' },
+        { id: crypto.randomUUID(), name: ssB, muscle: '', is_superset: true, superset_group: gid, metric: 'reps' },
       ]
     })
     setSsA(''); setSsB(''); setShowSuperset(false)
   }
+
+  const setMetric = (id, metric) =>
+    onChange({ ...day, exercises: day.exercises.map(e => e.id === id ? { ...e, metric } : e) })
 
   const removeExercise = (id) => {
     const ex = day.exercises.find(e => e.id === id)
@@ -106,6 +111,8 @@ function DayEditor({ day, onChange }) {
     const curr = day.muscle_groups || []
     onChange({ ...day, muscle_groups: curr.includes(g) ? curr.filter(m => m !== g) : [...curr, g] })
   }
+
+  const knownNames = day.exercises.map(e => e.name)
 
   // Group exercises for display
   const grouped = []
@@ -158,25 +165,29 @@ function DayEditor({ day, onChange }) {
                   {item.pair.map((p, pi) => (
                     <div key={p.id} className="flex items-center gap-2">
                       <span className="text-[#555] text-xs w-4">{pi === 0 ? 'A' : 'B'}</span>
-                      <span className="text-white text-sm">{p.name}</span>
+                      <span className="text-white text-sm flex-1 min-w-0">{p.name}</span>
+                      <MetricToggle size="sm" value={p.metric || 'reps'} onChange={m => setMetric(p.id, m)} />
                     </div>
                   ))}
                 </div>
               )
             }
             return (
-              <div key={item.ex.id} className="bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl px-4 py-3 flex items-center justify-between">
-                <div>
+              <div key={item.ex.id} className="bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <p className="text-white text-sm font-medium">{item.ex.name}</p>
                   {item.ex.muscle && <p className="text-[#555] text-xs">{item.ex.muscle}</p>}
                 </div>
-                <button onClick={() => removeExercise(item.ex.id)} className="text-[#555] hover:text-[#ff4f4f] text-lg leading-none transition-colors">×</button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <MetricToggle size="sm" value={item.ex.metric || 'reps'} onChange={m => setMetric(item.ex.id, m)} />
+                  <button onClick={() => removeExercise(item.ex.id)} className="text-[#555] hover:text-[#ff4f4f] text-lg leading-none transition-colors">×</button>
+                </div>
               </div>
             )
           })}
         </div>
 
-        <ExerciseSearch onSelect={addExercise} />
+        <ExerciseSearch onSelect={addExercise} knownNames={knownNames} />
 
         <button
           onClick={() => setShowSuperset(!showSuperset)}
@@ -190,11 +201,13 @@ function DayEditor({ day, onChange }) {
             <p className="text-accent text-xs font-bold uppercase">Superset</p>
             <ExerciseSearch
               placeholder="Exercise A…"
+              knownNames={knownNames}
               onSelect={ex => setSsA(ex.name)}
             />
             {ssA && <p className="text-white text-sm">A: {ssA}</p>}
             <ExerciseSearch
               placeholder="Exercise B…"
+              knownNames={knownNames}
               onSelect={ex => setSsB(ex.name)}
             />
             {ssB && <p className="text-white text-sm">B: {ssB}</p>}
@@ -254,6 +267,7 @@ export default function PlanBuilderPage() {
           const rows = day.exercises.map((ex, idx) => ({
             day_id: wd.id, exercise_name: ex.name, muscle_group: ex.muscle,
             order_index: idx, is_superset: ex.is_superset, superset_group: ex.superset_group,
+            metric: ex.metric || 'reps',
           }))
           const { error: ee } = await supabase.from('day_exercises').insert(rows)
           if (ee) throw ee

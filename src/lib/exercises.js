@@ -100,3 +100,34 @@ export function searchExercises(query) {
     e.name.toLowerCase().includes(q) || e.muscle.toLowerCase().includes(q)
   ).slice(0, 8)
 }
+
+// Matches the `exercise_key` generated column in Postgres — keep the two in step.
+export function exerciseKey(name) {
+  return (name || '').trim().toLowerCase()
+}
+
+// Snap a freely typed name onto an existing spelling so analytics doesn't end up
+// with "Bench press" and "Bench Press" as separate exercises.
+export function canonicalName(name, knownNames = []) {
+  const key = exerciseKey(name)
+  if (!key) return (name || '').trim()
+  const match = [...knownNames, ...EXERCISES.map(e => e.name)]
+    .find(n => exerciseKey(n) === key)
+  return match || name.trim()
+}
+
+// The second number of a logged set, rendered in whichever metric it was
+// recorded — seconds for time-based exercises, reps for everything else.
+export const setDisplayValue     = (s) => s.metric === 'time'
+  ? formatDuration(s.duration_seconds) : (s.reps ?? '—')
+export const partnerDisplayValue = (s) => s.partner_metric === 'time'
+  ? formatDuration(s.partner_duration_seconds) : (s.partner_reps ?? '—')
+
+// Time-based exercises log seconds; everything else logs reps.
+export function formatDuration(secs) {
+  const n = Number(secs)
+  if (!Number.isFinite(n) || n <= 0) return '—'
+  if (n < 60) return `${n}s`
+  const m = Math.floor(n / 60), s = n % 60
+  return s ? `${m}m ${s}s` : `${m}m`
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useSettings } from '../contexts/SettingsContext'
@@ -11,6 +11,7 @@ import { Button } from '../components/ui/Button'
 import { Capacitor } from '@capacitor/core'
 import { readStepsHistory, hasPermissions } from '../lib/healthConnect'
 import { getAccent } from '../lib/theme'
+import { exerciseKey, formatDuration, setDisplayValue, partnerDisplayValue } from '../lib/exercises'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -23,6 +24,19 @@ import {
 const TABS = ['Overview', 'Calendar', 'Exercises', 'Cardio', 'History']
 
 const MUTED  = '#444'
+
+// Blank means "not logged"; 0 is a real value, so avoid `parseFloat(x) || null`
+const hasValue  = (v) => String(v ?? '').trim() !== ''
+const numOrNull = (v) => {
+  if (!hasValue(v)) return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function ExerciseNote({ note }) {
+  if (!note) return null
+  return <p className="text-[#777] text-xs italic bg-[#1a1a1a] rounded-xl px-3 py-2 mt-1">📝 {note}</p>
+}
 
 // ─── Custom Tooltip ────────────────────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }) {
@@ -44,14 +58,22 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
   const { settings } = useSettings()
   const unit = settings.weight_unit || 'kg'
   const [sets, setSets]   = useState([])
+  const [notes, setNotes] = useState({})   // exercise_name => note
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!open || !session) return
     setLoading(true)
-    supabase.from('session_sets').select('*')
-      .eq('session_id', session.id).order('exercise_name').order('set_number')
-      .then(({ data }) => { setSets(data || []); setLoading(false) })
+    Promise.all([
+      supabase.from('session_sets').select('*')
+        .eq('session_id', session.id).order('exercise_name').order('set_number'),
+      supabase.from('session_exercise_notes').select('exercise_name, note')
+        .eq('session_id', session.id),
+    ]).then(([{ data }, { data: noteRows }]) => {
+      setSets(data || [])
+      setNotes(Object.fromEntries((noteRows || []).map(n => [n.exercise_name, n.note])))
+      setLoading(false)
+    })
   }, [open, session])
 
   function formatDur(secs) {
@@ -130,10 +152,12 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
                     {g.sets.map((s, si) => (
                       <div key={si} className="flex items-center gap-2 text-sm">
                         <span className="w-5 text-[#555] text-xs text-center">{s.set_number}</span>
-                        <span className="flex-1 text-center text-white font-medium">{s.weight ?? '—'}{unit} × {s.reps ?? '—'}</span>
-                        <span className="flex-1 text-center text-[#aaa]">{s.partner_weight ?? '—'}{unit} × {s.partner_reps ?? '—'}</span>
+                        <span className="flex-1 text-center text-white font-medium">{s.weight ?? '—'}{unit} × {setDisplayValue(s)}</span>
+                        <span className="flex-1 text-center text-[#aaa]">{s.partner_weight ?? '—'}{unit} × {partnerDisplayValue(s)}</span>
                       </div>
                     ))}
+                    <ExerciseNote note={notes[g.nameA]} />
+                    <ExerciseNote note={notes[g.nameB]} />
                   </>
                 ) : (
                   <>
@@ -141,9 +165,12 @@ function SessionDetailModal({ session, open, onClose, onEdit }) {
                     {g.sets.map((s, si) => (
                       <div key={si} className="flex items-center gap-3 text-sm">
                         <span className="w-5 text-[#555] text-xs text-center">{s.set_number}</span>
-                        <span className="text-white font-medium">{s.weight ?? '—'}{unit} × {s.reps ?? '—'} reps</span>
+                        <span className="text-white font-medium">
+                          {s.weight ?? '—'}{unit} × {setDisplayValue(s)}{s.metric === 'time' ? '' : ' reps'}
+                        </span>
                       </div>
                     ))}
+                    <ExerciseNote note={notes[g.name]} />
                   </>
                 )}
               </div>
@@ -435,30 +462,112 @@ function OverviewTab({ sessions, cardioSessions, stepsHistory }) {
 }
 
 // ─── Exercises Tab ─────────────────────────────────────────────────────────────
-function ExercisesTab({ allSets }) {
+function ExercisesTab({ allSets, planExercises, onRenamed }) {
   const { settings } = useSettings()
   const unit = settings.weight_unit || 'kg'
 
+  // One entry per folded name, displayed with the most recently used spelling,
+  // so "Bench press" and "Bench Press" collapse into a single exercise.
   const exercises = useMemo(() => {
-    const names = new Set(allSets.map(s => s.exercise_name))
-    allSets.forEach(s => { if (s.superset_partner_name) names.add(s.superset_partner_name) })
-    return [...names].sort()
-  }, [allSets])
-  const [selected, setSelected] = useState('')
+    const map = new Map()
+    const consider = (name, at) => {
+      const key = exerciseKey(name)
+      if (!key) return
+      const prev = map.get(key)
+      if (!prev) map.set(key, { key, name: (name || '').trim(), lastAt: at })
+      else if (at && (!prev.lastAt || at > prev.lastAt)) { prev.name = name.trim(); prev.lastAt = at }
+    }
+    allSets.forEach(s => {
+      consider(s.exercise_name, s.completed_at)
+      if (s.superset_partner_name) consider(s.superset_partner_name, s.completed_at)
+    })
+    // Planned but never logged — selectable, just with no data behind them
+    planExercises.forEach(p => consider(p.exercise_name, null))
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [allSets, planExercises])
 
-  // Raw sets for selected exercise, sorted by date
+  const [selected, setSelected] = useState('')   // exercise_key
+  const [renameOpen, setRenameOpen]   = useState(false)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [renameError, setRenameError] = useState('')
+  const [renaming, setRenaming]       = useState(false)
+
+  const selectedName = exercises.find(e => e.key === selected)?.name || ''
+
+  // Raw sets for selected exercise, sorted oldest first
   const rawSets = useMemo(() => {
     if (!selected) return []
-    const primary = allSets.filter(s => s.exercise_name === selected && s.weight != null && s.reps != null)
+    const primary = allSets
+      .filter(s => exerciseKey(s.exercise_name) === selected)
+      .map(s => ({ ...s, _metric: s.metric || 'reps', _dur: s.duration_seconds }))
     const partner = allSets
-      .filter(s => s.superset_partner_name === selected && s.partner_weight != null && s.partner_reps != null)
-      .map(s => ({ ...s, weight: s.partner_weight, reps: s.partner_reps }))
-    return [...primary, ...partner].sort((a,b) => new Date(a.completed_at) - new Date(b.completed_at))
+      .filter(s => exerciseKey(s.superset_partner_name) === selected)
+      .map(s => ({
+        ...s, weight: s.partner_weight, reps: s.partner_reps,
+        _metric: s.partner_metric || 'reps', _dur: s.partner_duration_seconds,
+      }))
+    return [...primary, ...partner]
+      .filter(s => s.weight != null || s.reps != null || s._dur != null)
+      .sort((a,b) => new Date(a.completed_at) - new Date(b.completed_at))
   }, [selected, allSets])
+
+  const isTime   = rawSets.length > 0 && rawSets.every(s => s._metric === 'time')
+  const repSets  = useMemo(() => rawSets.filter(s => s.weight != null && s.reps != null), [rawSets])
+  const timeSets = useMemo(() => rawSets.filter(s => s._dur != null), [rawSets])
+
+  // Most recent sessions first — answers "what weight did I use last time?"
+  const recentSessions = useMemo(() => {
+    const map = new Map()
+    for (let i = rawSets.length - 1; i >= 0; i--) {
+      const s = rawSets[i]
+      const date = format(parseISO(s.completed_at), 'EEE, MMM d yyyy')
+      if (!map.has(date)) map.set(date, [])
+      map.get(date).push(s)
+    }
+    return [...map.entries()].slice(0, 5).map(([date, sets]) => ({
+      date,
+      sets: [...sets].sort((a, b) => (a.set_number || 0) - (b.set_number || 0)),
+    }))
+  }, [rawSets])
+
+  const durationProgression = useMemo(() => {
+    return timeSets.reduce((acc, s) => {
+      const date = format(parseISO(s.completed_at), 'MMM d')
+      const secs = +s._dur
+      const last = acc[acc.length - 1]
+      if (last?.date === date) {
+        last.Seconds = Math.max(last.Seconds, secs)
+        last.Total  += secs
+      } else {
+        acc.push({ date, Seconds: secs, Total: secs })
+      }
+      return acc
+    }, [])
+  }, [timeSets])
+
+  // The three updates below are not a transaction, so refetch afterwards rather
+  // than assuming they all landed.
+  const doRename = async () => {
+    const newName = renameDraft.trim()
+    if (!newName || !selected) return
+    setRenaming(true)
+    setRenameError('')
+    const results = await Promise.all([
+      supabase.from('session_sets').update({ exercise_name: newName }).eq('exercise_key', selected),
+      supabase.from('session_sets').update({ superset_partner_name: newName }).eq('partner_key', selected),
+      supabase.from('day_exercises').update({ exercise_name: newName }).eq('exercise_key', selected),
+    ])
+    setRenaming(false)
+    const failed = results.find(r => r.error)
+    if (failed) { setRenameError(failed.error.message || 'Rename failed'); return }
+    setSelected(exerciseKey(newName))
+    setRenameOpen(false)
+    onRenamed()
+  }
 
   // Best weight + reps per session date (for weight/reps/1RM charts)
   const progression = useMemo(() => {
-    return rawSets.reduce((acc, s) => {
+    return repSets.reduce((acc, s) => {
       const date = format(parseISO(s.completed_at), 'MMM d')
       const last = acc[acc.length - 1]
       const oneRM = +(+s.weight * (1 + +s.reps / 30)).toFixed(1)
@@ -473,11 +582,11 @@ function ExercisesTab({ allSets }) {
       }
       return acc
     }, [])
-  }, [rawSets])
+  }, [repSets])
 
   // Volume per session date (sum of weight × reps)
   const volumeProgression = useMemo(() => {
-    return rawSets.reduce((acc, s) => {
+    return repSets.reduce((acc, s) => {
       const date = format(parseISO(s.completed_at), 'MMM d')
       const vol = +(+s.weight * +s.reps).toFixed(0)
       const last = acc[acc.length - 1]
@@ -488,13 +597,13 @@ function ExercisesTab({ allSets }) {
       }
       return acc
     }, [])
-  }, [rawSets])
+  }, [repSets])
 
   // Personal records
   const prs = useMemo(() => {
-    if (!rawSets.length) return null
+    if (!repSets.length) return null
     let maxWeight = 0, maxReps = 0, maxOneRM = 0, maxVolDate = '', maxVol = 0
-    rawSets.forEach(s => {
+    repSets.forEach(s => {
       const w = +s.weight, r = +s.reps
       if (w > maxWeight) maxWeight = w
       if (r > maxReps) maxReps = r
@@ -505,12 +614,30 @@ function ExercisesTab({ allSets }) {
       if (v.Volume > maxVol) { maxVol = v.Volume; maxVolDate = v.date }
     })
     return { maxWeight, maxReps, maxOneRM, maxVol, maxVolDate }
-  }, [rawSets, volumeProgression])
+  }, [repSets, volumeProgression])
+
+  const timePrs = useMemo(() => {
+    if (!timeSets.length) return null
+    const longest = timeSets.reduce((m, s) => Math.max(m, +s._dur), 0)
+    const total   = timeSets.reduce((a, s) => a + +s._dur, 0)
+    const best    = durationProgression.reduce((m, d) => Math.max(m, d.Total), 0)
+    return { longest, total, best }
+  }, [timeSets, durationProgression])
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="text-[#777] text-sm font-medium mb-2">Select Exercise</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[#777] text-sm font-medium">Select Exercise</p>
+          {selected && (
+            <button
+              onClick={() => { setRenameDraft(selectedName); setRenameError(''); setRenameOpen(true) }}
+              className="text-accent text-xs font-medium"
+            >
+              Rename
+            </button>
+          )}
+        </div>
         <div className="relative">
           <select
             value={selected}
@@ -519,17 +646,111 @@ function ExercisesTab({ allSets }) {
               focus:outline-none focus:border-accent/50 appearance-none"
           >
             <option value="">-- Choose an exercise --</option>
-            {exercises.map(e => <option key={e} value={e}>{e}</option>)}
+            {exercises.map(e => <option key={e.key} value={e.key}>{e.name}</option>)}
           </select>
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#555] pointer-events-none">▾</span>
         </div>
       </div>
 
-      {selected && progression.length === 0 && (
-        <EmptyState icon="📈" title="Not enough data" subtitle="Log more sets to see progression" />
+      {selected && rawSets.length === 0 && (
+        <EmptyState icon="📈" title="Nothing logged yet" subtitle="Track this exercise to see its history" />
       )}
 
-      {progression.length > 0 && prs && (
+      {/* Recent sessions — what to load today */}
+      {recentSessions.length > 0 && (
+        <Card>
+          <p className="text-white font-semibold mb-1">Recent sessions</p>
+          <p className="text-[#555] text-xs mb-3">Most recent first</p>
+          <div className="flex flex-col gap-3">
+            {recentSessions.map((sess, i) => (
+              <div key={sess.date} className={`rounded-2xl px-3 py-2.5 ${i === 0 ? 'bg-accent/10 border border-accent/20' : 'bg-[#1e1e1e]'}`}>
+                <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                  <p className={`text-xs font-semibold ${i === 0 ? 'text-accent' : 'text-[#777]'}`}>
+                    {i === 0 ? 'Last session' : sess.date}
+                  </p>
+                  {i === 0 && <p className="text-[#777] text-xs">{sess.date}</p>}
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  {sess.sets.map((s, si) => (
+                    <span key={si} className="text-sm">
+                      <span className="text-[#555] text-xs mr-1">{si + 1}</span>
+                      <span className="text-white font-medium">
+                        {s.weight != null ? `${s.weight}${unit}` : 'BW'}
+                        {' × '}
+                        {s._metric === 'time' ? formatDuration(s._dur) : (s.reps ?? '—')}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {isTime && timePrs && (
+        <Card>
+          <p className="text-white font-semibold mb-3">Personal Records</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
+              <p className="text-accent text-2xl font-bold">{formatDuration(timePrs.longest)}</p>
+              <p className="text-[#555] text-xs mt-1">Longest hold</p>
+            </div>
+            <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
+              <p className="text-[#4fdf7c] text-2xl font-bold">{formatDuration(timePrs.best)}</p>
+              <p className="text-[#555] text-xs mt-1">Best session total</p>
+            </div>
+            <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
+              <p className="text-[#4fa8ff] text-2xl font-bold">{formatDuration(timePrs.total)}</p>
+              <p className="text-[#555] text-xs mt-1">Total time under load</p>
+            </div>
+            <div className="bg-[#1e1e1e] rounded-2xl p-3 text-center">
+              <p className="text-white text-2xl font-bold">{timeSets.length}</p>
+              <p className="text-[#555] text-xs mt-1">Sets logged</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {isTime && durationProgression.length > 1 && (
+        <Card>
+          <p className="text-white font-semibold mb-1">Hold Duration</p>
+          <p className="text-[#555] text-xs mb-4">Longest set per session, in seconds</p>
+          <ResponsiveContainer width="100%" height={170}>
+            <LineChart data={durationProgression} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" />
+              <XAxis dataKey="date" tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#555', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Line type="monotone" dataKey="Seconds" stroke={getAccent()} strokeWidth={2.5}
+                dot={{ fill: getAccent(), strokeWidth: 0, r: 4 }} activeDot={{ r: 6 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+
+      <Modal open={renameOpen} onClose={() => setRenameOpen(false)} title="Rename exercise">
+        <div className="flex flex-col gap-4">
+          <p className="text-[#777] text-sm">
+            Renames every logged set and plan entry for <span className="text-white font-medium">{selectedName}</span>.
+            Use it to fold a misspelling back into the right exercise.
+          </p>
+          <input
+            value={renameDraft}
+            onChange={e => setRenameDraft(e.target.value)}
+            autoFocus
+            className="h-12 px-4 rounded-2xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-base
+              focus:outline-none focus:border-accent/50 w-full"
+          />
+          {renameError && <p className="text-[#ff4f4f] text-sm">{renameError}</p>}
+          <Button size="lg" className="w-full" onClick={doRename}
+            disabled={renaming || !renameDraft.trim() || renameDraft.trim() === selectedName}>
+            {renaming ? 'Renaming…' : 'Rename'}
+          </Button>
+        </div>
+      </Modal>
+
+      {!isTime && progression.length > 0 && prs && (
         <Card>
           <p className="text-white font-semibold mb-3">Personal Records</p>
           <div className="grid grid-cols-2 gap-2">
@@ -554,7 +775,7 @@ function ExercisesTab({ allSets }) {
         </Card>
       )}
 
-      {progression.length > 1 && (
+      {!isTime && progression.length > 1 && (
         <>
           <Card>
             <p className="text-white font-semibold mb-1">Estimated 1RM</p>
@@ -738,6 +959,7 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
   const [endDate, setEndDate]     = useState('')
   const [notes, setNotes]     = useState('')
   const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
 
   useEffect(() => {
     if (!open || !session) return
@@ -761,13 +983,22 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
       session_id: session.id,
       exercise_name: exerciseName,
       set_number: (last?.set_number || 0) + 1,
-      weight: last?.weight || null,
-      reps: last?.reps || null,
+      weight: last?.weight ?? null,
+      reps: last?.reps ?? null,
+      metric: last?.metric || 'reps',
+      duration_seconds: last?.duration_seconds ?? null,
+      // Carry the pairing, or an added set silently degrades to a single
+      superset_partner_name: last?.superset_partner_name || null,
+      partner_weight: last?.partner_weight ?? null,
+      partner_reps: last?.partner_reps ?? null,
+      partner_metric: last?.partner_metric || 'reps',
+      partner_duration_seconds: last?.partner_duration_seconds ?? null,
     }])
   }
 
   const save = async () => {
     setSaving(true)
+    setError('')
     const newStart = new Date(startDate)
     const newEnd   = endDate ? new Date(endDate) : null
     const duration = newEnd && newStart ? Math.round((newEnd - newStart) / 1000) : null
@@ -781,18 +1012,35 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
       })
       .eq('id', session.id)
 
-    await supabase.from('session_sets').delete().eq('session_id', session.id)
-    const rows = sets.filter(s => s.reps || s.weight).map((s) => ({
-      session_id: session.id,
-      exercise_name: s.exercise_name,
-      set_number: s.set_number,
-      weight: parseFloat(s.weight) || null,
-      reps: parseInt(s.reps) || null,
-      superset_partner_name: s.superset_partner_name || null,
-      partner_weight: parseFloat(s.partner_weight) || null,
-      partner_reps: parseInt(s.partner_reps) || null,
-    }))
-    if (rows.length) await supabase.from('session_sets').insert(rows)
+    const rows = sets
+      .filter(s => hasValue(s.weight) || hasValue(s.reps) || hasValue(s.duration_seconds))
+      .map((s) => ({
+        session_id: session.id,
+        exercise_name: s.exercise_name,
+        set_number: s.set_number,
+        weight: numOrNull(s.weight),
+        metric: s.metric || 'reps',
+        reps: numOrNull(s.reps),
+        duration_seconds: numOrNull(s.duration_seconds),
+        superset_partner_name: s.superset_partner_name || null,
+        partner_weight: numOrNull(s.partner_weight),
+        partner_metric: s.partner_metric || 'reps',
+        partner_reps: numOrNull(s.partner_reps),
+        partner_duration_seconds: numOrNull(s.partner_duration_seconds),
+      }))
+
+    // Write the replacements before clearing the originals: a failed insert
+    // then leaves the workout intact instead of wiping it.
+    const originalIds = sets.map(s => s.id).filter(id => !String(id).startsWith('new-'))
+    if (rows.length) {
+      const { error: insErr } = await supabase.from('session_sets').insert(rows)
+      if (insErr) {
+        setSaving(false)
+        setError(insErr.message || 'Could not save sets — nothing was changed.')
+        return
+      }
+    }
+    if (originalIds.length) await supabase.from('session_sets').delete().in('id', originalIds)
 
     setSaving(false)
     onSaved({ ...session, started_at: newStart.toISOString(), ended_at: newEnd?.toISOString() || null, duration_seconds: duration, notes })
@@ -823,37 +1071,60 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
           </div>
         </div>
 
-        {Object.entries(byExercise).map(([name, exSets]) => (
-          <div key={name} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <p className="text-white font-semibold text-sm">{name}</p>
-              <button onClick={() => addSet(name)}
-                className="text-accent text-xs font-medium">+ set</button>
-            </div>
-            <div className="flex items-center gap-2 px-1">
-              <span className="w-5 text-[#555] text-xs">#</span>
-              <span className="flex-1 text-center text-[#555] text-xs">Weight</span>
-              <span className="flex-1 text-center text-[#555] text-xs">Reps</span>
-              <span className="w-7" />
-            </div>
-            {exSets.map((s, i) => {
-              const gi = sets.indexOf(s)
-              return (
-                <div key={s.id} className="flex items-center gap-2">
-                  <span className="w-5 text-[#555] text-xs text-center">{i + 1}</span>
-                  <input type="number" inputMode="decimal" value={s.weight ?? ''} placeholder="0"
-                    onChange={e => updateSet(gi, 'weight', e.target.value)}
-                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-accent/50" />
-                  <input type="number" inputMode="numeric" value={s.reps ?? ''} placeholder="0"
-                    onChange={e => updateSet(gi, 'reps', e.target.value)}
-                    className="flex-1 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-accent/50" />
-                  <button onClick={() => removeSet(gi)}
-                    className="w-7 h-7 flex items-center justify-center text-[#444] hover:text-[#ff4f4f] text-lg">×</button>
+        {Object.entries(byExercise).map(([name, exSets]) => {
+          const partnerName = exSets.find(s => s.superset_partner_name)?.superset_partner_name
+          return (
+            <div key={name} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <p className="text-white font-semibold text-sm">{name}</p>
+                  {partnerName && <>
+                    <span className="text-accent text-xs bg-accent/10 px-2 h-5 rounded-full flex items-center font-bold shrink-0">SS</span>
+                    <p className="text-white font-semibold text-sm">{partnerName}</p>
+                  </>}
                 </div>
-              )
-            })}
-          </div>
-        ))}
+                <button onClick={() => addSet(name)}
+                  className="text-accent text-xs font-medium shrink-0">+ set</button>
+              </div>
+              <div className="flex items-center gap-2 px-1">
+                <span className="w-5 text-[#555] text-xs">#</span>
+                <span className="flex-1 text-center text-[#555] text-xs">{partnerName ? 'A weight' : 'Weight'}</span>
+                <span className="flex-1 text-center text-[#555] text-xs">{partnerName ? 'A reps' : 'Reps'}</span>
+                {partnerName && <>
+                  <span className="flex-1 text-center text-[#555] text-xs">B weight</span>
+                  <span className="flex-1 text-center text-[#555] text-xs">B reps</span>
+                </>}
+                <span className="w-7" />
+              </div>
+              {exSets.map((s, i) => {
+                const gi = sets.indexOf(s)
+                // Time-based sets edit duration_seconds; everything else edits reps
+                const valField    = s.metric === 'time' ? 'duration_seconds' : 'reps'
+                const pValField   = s.partner_metric === 'time' ? 'partner_duration_seconds' : 'partner_reps'
+                const cls = 'flex-1 min-w-0 h-10 rounded-xl bg-[#1e1e1e] border border-[#2e2e2e] text-white text-center text-sm focus:outline-none focus:border-accent/50'
+                return (
+                  <div key={s.id} className="flex items-center gap-2">
+                    <span className="w-5 text-[#555] text-xs text-center">{i + 1}</span>
+                    <input type="number" inputMode="decimal" value={s.weight ?? ''} placeholder="0"
+                      onChange={e => updateSet(gi, 'weight', e.target.value)} className={cls} />
+                    <input type="number" inputMode="numeric" value={s[valField] ?? ''}
+                      placeholder={s.metric === 'time' ? 'sec' : '0'}
+                      onChange={e => updateSet(gi, valField, e.target.value)} className={cls} />
+                    {partnerName && <>
+                      <input type="number" inputMode="decimal" value={s.partner_weight ?? ''} placeholder="0"
+                        onChange={e => updateSet(gi, 'partner_weight', e.target.value)} className={cls} />
+                      <input type="number" inputMode="numeric" value={s[pValField] ?? ''}
+                        placeholder={s.partner_metric === 'time' ? 'sec' : '0'}
+                        onChange={e => updateSet(gi, pValField, e.target.value)} className={cls} />
+                    </>}
+                    <button onClick={() => removeSet(gi)}
+                      className="w-7 h-7 flex items-center justify-center text-[#444] hover:text-[#ff4f4f] text-lg shrink-0">×</button>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
 
         <div className="flex flex-col gap-1.5">
           <label className="text-[#777] text-sm font-medium">Notes</label>
@@ -863,6 +1134,7 @@ function EditSessionModal({ session, open, onClose, onSaved }) {
               placeholder:text-[#444] focus:outline-none focus:border-accent/50 resize-none w-full" />
         </div>
 
+        {error && <p className="text-[#ff4f4f] text-sm">{error}</p>}
         <Button size="lg" className="w-full" onClick={save} disabled={saving}>
           {saving ? 'Saving…' : 'Save Changes'}
         </Button>
@@ -946,6 +1218,7 @@ export default function AnalyticsPage() {
   const [tab, setTab]  = useState(0)
   const [sessions,  setSessions]  = useState([])
   const [allSets,   setAllSets]   = useState([])
+  const [planExercises, setPlanExercises] = useState([])
   const [cardio,    setCardio]    = useState([])
   const [stepsHistory, setStepsHistory] = useState({})
   const [loading,   setLoading]   = useState(true)
@@ -955,25 +1228,35 @@ export default function AnalyticsPage() {
 
   const MUSCLE_GROUPS = ['Chest','Back','Shoulders','Biceps','Triceps','Legs','Glutes','Core']
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!user) return
     Promise.all([
       supabase.from('workout_sessions').select('*').eq('user_id', user.id).order('started_at', { ascending: false }).limit(200),
-      supabase.from('session_sets').select('*, workout_sessions!inner(user_id)').eq('workout_sessions.user_id', user.id).order('completed_at').limit(2000),
+      // Newest first: the limit truncates old history rather than hiding
+      // recently logged exercises from the Exercises tab.
+      supabase.from('session_sets').select('*, workout_sessions!inner(user_id)').eq('workout_sessions.user_id', user.id).order('completed_at', { ascending: false }).limit(5000),
       supabase.from('cardio_sessions').select('*, hiit_sets(*)').eq('user_id', user.id).order('date', { ascending: false }).limit(200),
-    ]).then(([{ data: s }, { data: sets }, { data: c }]) => {
+      // Planned exercises, so ones never logged yet are still selectable.
+      // RLS scopes day_exercises to the user via plan ownership.
+      supabase.from('day_exercises').select('exercise_name, metric').limit(1000),
+    ]).then(([{ data: s }, { data: sets }, { data: c }, { data: planEx }]) => {
       setSessions(s || [])
       setAllSets(sets || [])
       setCardio(c || [])
+      setPlanExercises(planEx || [])
       setLoading(false)
     })
+  }, [user])
+
+  useEffect(() => {
+    load()
 
     if (Capacitor.isNativePlatform()) {
       hasPermissions().then(granted => {
         if (granted) readStepsHistory(30).then(h => setStepsHistory(h || {}))
       })
     }
-  }, [user])
+  }, [load])
 
   const deleteSession = async (id) => {
     if (!confirm('Delete this workout log? This cannot be undone.')) return
@@ -1024,7 +1307,7 @@ export default function AnalyticsPage() {
             </Card>
           </div>
         )}
-        {tab === 2 && <ExercisesTab allSets={allSets} />}
+        {tab === 2 && <ExercisesTab allSets={allSets} planExercises={planExercises} onRenamed={load} />}
         {tab === 3 && <CardioTab cardioSessions={cardio} />}
         {tab === 4 && <HistoryTab sessions={sessions} onDelete={deleteSession} onEdit={setEditSession} onView={setViewSession} />}
       </div>

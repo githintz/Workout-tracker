@@ -4,6 +4,11 @@ Triage of the 12 open `feedback`-labelled issues in `githintz/workout-tracker`,
 as of 2026-07-25. Six of them were already fixed by earlier commits and just
 never got closed. Five need real work, and one has a residual gap.
 
+> **Status:** phases 1–6 are implemented. The migration in
+> `supabase/migrations/2026-07-25_feedback_round.sql` must be run in the
+> Supabase SQL editor before the new UI works — until then the queries
+> referencing `exercise_key`, `metric` and `session_exercise_notes` will fail.
+
 ## Triage
 
 ### Already shipped — close, no code needed
