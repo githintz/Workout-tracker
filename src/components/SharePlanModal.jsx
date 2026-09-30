@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Modal } from './ui/Modal'
@@ -11,7 +12,10 @@ const STATUS_STYLES = {
   declined: 'text-[#ff4f4f] bg-[#ff4f4f]/10',
 }
 
-const APP_URL = import.meta.env.VITE_APP_URL || (window.location.origin + import.meta.env.BASE_URL)
+// Inside the Android app the page is served from localhost, so invites point at the web app
+const APP_URL = import.meta.env.VITE_APP_URL || (Capacitor.isNativePlatform()
+  ? 'https://githintz.github.io/Workout-tracker/'
+  : window.location.origin + import.meta.env.BASE_URL)
 
 function inviteText(senderEmail, recipientEmail, planName) {
   return `${senderEmail} made you a workout plan "${planName}" in LIFT.\n\n` +
@@ -62,6 +66,16 @@ export function SharePlanModal({ plan, onClose }) {
 
   async function invite(to) {
     const text = inviteText(user.email, to, plan.name)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Share } = await import('@capacitor/share')
+        await Share.share({ title: 'LIFT workout plan', text, dialogTitle: 'Invite your friend' })
+        return
+      } catch (e) {
+        if (/cancel/i.test(e?.message || '')) return
+        // share sheet unavailable — fall back to email
+      }
+    }
     if (navigator.share) {
       try { await navigator.share({ title: 'LIFT workout plan', text }); return } catch { /* cancelled */ }
     }

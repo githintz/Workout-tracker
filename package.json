@@ -15,6 +15,7 @@
     "@capacitor/app": "^7.1.2",
     "@capacitor/cli": "^7.6.5",
     "@capacitor/core": "^7.6.5",
+    "@capacitor/share": "^7.0.4",
     "@kiwi-health/capacitor-health-connect": "^0.0.40",
     "@supabase/supabase-js": "^2.103.3",
     "date-fns": "^4.1.0",
