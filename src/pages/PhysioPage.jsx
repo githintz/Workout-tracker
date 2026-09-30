@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { SettingsProvider } from '../contexts/SettingsContext'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageLoader } from '../components/ui/Spinner'
+import { AppearanceCard } from '../components/ui/AppearanceCard'
 import { format, parseISO } from 'date-fns'
+import AnalyticsPage from './AnalyticsPage'
 
 function formatDur(secs) {
   if (!secs) return null
@@ -177,8 +180,8 @@ export default function PhysioPage({ onExit }) {
                 </p>
 
                 {/* Tabs */}
-                <div className="flex gap-2">
-                  {['Workouts', 'Cardio'].map(t => (
+                <div className="flex gap-2 flex-wrap">
+                  {['Workouts', 'Cardio', 'Analytics', 'Appearance'].map(t => (
                     <button key={t} onClick={() => setTab(t)}
                       className={`h-10 px-5 rounded-2xl text-sm font-semibold transition-all active:scale-95 ${
                         tab === t ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
@@ -188,7 +191,13 @@ export default function PhysioPage({ onExit }) {
                   ))}
                 </div>
 
-                {loading ? <PageLoader /> : tab === 'Workouts' ? (
+                {tab === 'Analytics' ? (
+                  <SettingsProvider>
+                    <AnalyticsPage userId={selected.owner_id} readOnly />
+                  </SettingsProvider>
+                ) : tab === 'Appearance' ? (
+                  <AppearanceCard />
+                ) : loading ? <PageLoader /> : tab === 'Workouts' ? (
                   sessions.length === 0 ? (
                     <p className="text-[#555] text-sm text-center py-8">No workouts logged yet</p>
                   ) : (

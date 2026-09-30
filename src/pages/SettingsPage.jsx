@@ -12,20 +12,19 @@ import {
   syncAllSessions,
 } from '../lib/healthConnect'
 import { supabase } from '../lib/supabase'
-import { ACCENTS, applyAccent, getAccentKey } from '../lib/theme'
+import { AppearanceCard } from '../components/ui/AppearanceCard'
 
 const REST_PRESETS = [30, 60, 90, 120, 180, 240]
 
 export default function SettingsPage() {
-  const { user, signOut }  = useAuth()
+  const { user, signOut, signInWithEmail }  = useAuth()
   const { settings, update } = useSettings()
   const [signingOut, setSigningOut] = useState(false)
-  const [theme, setTheme] = useState(() => localStorage.getItem('lift_theme') || 'dark')
-  const [accent, setAccent] = useState(getAccentKey)
 
   const [shares, setShares]         = useState([])
   const [shareEmail, setShareEmail] = useState('')
   const [shareMsg, setShareMsg]     = useState('')
+  const [shareOk, setShareOk]       = useState(false)
   const [shareBusy, setShareBusy]   = useState(false)
 
   const [hcStatus, setHcStatus]       = useState(null)
@@ -50,18 +49,6 @@ export default function SettingsPage() {
   const setRest = (secs) => update({ rest_timer_seconds: secs })
   const setUnit = (unit) => update({ weight_unit: unit })
 
-  const toggleTheme = (next) => {
-    setTheme(next)
-    localStorage.setItem('lift_theme', next)
-    if (next === 'light') document.documentElement.classList.add('light')
-    else document.documentElement.classList.remove('light')
-  }
-
-  const chooseAccent = (key) => {
-    setAccent(key)
-    applyAccent(key)
-  }
-
   useEffect(() => {
     if (!user) return
     loadShares()
@@ -78,6 +65,7 @@ export default function SettingsPage() {
     const email = shareEmail.trim().toLowerCase()
     if (!email) return
     if (email === user.email?.toLowerCase()) {
+      setShareOk(false)
       setShareMsg("That's your own email.")
       return
     }
@@ -86,8 +74,12 @@ export default function SettingsPage() {
     const { error } = await supabase.from('shared_access')
       .insert({ owner_id: user.id, owner_email: user.email, viewer_email: email })
     if (error) {
+      setShareOk(false)
       setShareMsg(error.code === '23505' ? 'Already shared with this email.' : `Could not share: ${error.message}`)
     } else {
+      const { error: inviteError } = await signInWithEmail(email)
+      setShareOk(!inviteError)
+      setShareMsg(inviteError ? 'Shared, but the invite email failed to send.' : `Invite sent to ${email}.`)
       setShareEmail('')
       await loadShares()
     }
@@ -125,34 +117,7 @@ export default function SettingsPage() {
       <h1 className="text-xl font-bold text-white">Settings</h1>
 
       {/* Theme */}
-      <Card>
-        <p className="text-white font-semibold mb-1">Appearance</p>
-        <p className="text-[#555] text-sm mb-4">Choose your preferred theme</p>
-        <div className="flex gap-3">
-          {[
-            { key: 'dark',  label: '🌙 Dark'  },
-            { key: 'light', label: '☀️ Light' },
-          ].map(({ key, label }) => (
-            <button key={key} onClick={() => toggleTheme(key)}
-              className={`flex-1 h-12 rounded-2xl text-base font-semibold transition-all active:scale-95 ${
-                theme === key ? 'bg-accent text-black' : 'bg-[#1e1e1e] border border-[#2e2e2e] text-white'
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <p className="text-[#555] text-sm mt-5 mb-3">Accent color</p>
-        <div className="flex gap-3 flex-wrap">
-          {Object.entries(ACCENTS).map(([key, a]) => (
-            <button key={key} onClick={() => chooseAccent(key)} aria-label={a.name} title={a.name}
-              className={`w-10 h-10 rounded-full transition-all active:scale-90 ${
-                accent === key ? 'ring-2 ring-white ring-offset-2 ring-offset-[#111]' : ''
-              }`}
-              style={{ background: a.hex }} />
-          ))}
-        </div>
-      </Card>
+      <AppearanceCard />
 
       {/* Rest timer */}
       <Card>
@@ -292,7 +257,7 @@ export default function SettingsPage() {
           </Button>
         </form>
 
-        {shareMsg && <p className="text-[#ff8c42] text-xs">{shareMsg}</p>}
+        {shareMsg && <p className={`text-xs ${shareOk ? 'text-[#4fdf7c]' : 'text-[#ff8c42]'}`}>{shareMsg}</p>}
       </Card>
 
       {/* Account */}
