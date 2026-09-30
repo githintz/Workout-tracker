@@ -7,12 +7,14 @@ import { Card } from '../components/ui/Card'
 import { MuscleChip } from '../components/ui/Badge'
 import { PageLoader } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
+import { SharePlanModal } from '../components/SharePlanModal'
 
 export default function PlansPage() {
   const { user }   = useAuth()
   const navigate   = useNavigate()
   const [plans, setPlans]   = useState([])
   const [loading, setLoading] = useState(true)
+  const [sharing, setSharing] = useState(null)
 
   useEffect(() => { loadPlans() }, [user])
 
@@ -92,12 +94,15 @@ export default function PlansPage() {
                   <Button size="sm" variant="accent" onClick={() => setActive(plan.id)}>Set Active</Button>
                 )}
                 <Button size="sm" variant="secondary" onClick={() => navigate(`/plans/${plan.id}/edit`)}>Edit</Button>
+                <Button size="sm" variant="secondary" onClick={() => setSharing(plan)}>Share</Button>
                 <Button size="sm" variant="danger" onClick={() => deletePlan(plan.id)}>Delete</Button>
               </div>
             </Card>
           )
         })
       )}
+
+      {sharing && <SharePlanModal key={sharing.id} plan={sharing} onClose={() => setSharing(null)} />}
     </div>
   )
 }

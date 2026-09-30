@@ -2,6 +2,7 @@ import { useState, Component } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { SettingsProvider } from './contexts/SettingsContext'
+import { NotificationsProvider } from './contexts/NotificationsContext'
 import { Layout } from './components/ui/Layout'
 import { PageLoader } from './components/ui/Spinner'
 import AuthPage        from './pages/AuthPage'
@@ -45,19 +46,21 @@ function AppRoutes() {
   }
   return (
     <SettingsProvider>
-      <Layout>
-        <Routes>
-          <Route path="/"               element={<HomePage />} />
-          <Route path="/plans"          element={<PlansPage />} />
-          <Route path="/plans/new"      element={<PlanBuilderPage />} />
-          <Route path="/plans/:id/edit" element={<PlanEditPage />} />
-          <Route path="/track"          element={<TrackPage />} />
-          <Route path="/cardio"         element={<CardioPage />} />
-          <Route path="/analytics"      element={<AnalyticsPage />} />
-          <Route path="/settings"       element={<SettingsPage />} />
-          <Route path="*"               element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
+      <NotificationsProvider>
+        <Layout>
+          <Routes>
+            <Route path="/"               element={<HomePage />} />
+            <Route path="/plans"          element={<PlansPage />} />
+            <Route path="/plans/new"      element={<PlanBuilderPage />} />
+            <Route path="/plans/:id/edit" element={<PlanEditPage />} />
+            <Route path="/track"          element={<TrackPage />} />
+            <Route path="/cardio"         element={<CardioPage />} />
+            <Route path="/analytics"      element={<AnalyticsPage />} />
+            <Route path="/settings"       element={<SettingsPage />} />
+            <Route path="*"               element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </NotificationsProvider>
     </SettingsProvider>
   )
 }

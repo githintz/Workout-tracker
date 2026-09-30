@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { NotificationsBell } from '../NotificationsBell'
 
 const NAV = [
   { to: '/',          icon: '⚡', label: 'Home'      },
@@ -106,13 +107,16 @@ export function Layout({ children }) {
       >
         <span className="text-accent font-black text-xl tracking-tight">LIFT</span>
         <span className="text-[#555] text-xs font-medium">{currentPage}</span>
-        <button
-          onClick={() => setShowFeedback(true)}
-          className="h-8 px-3 rounded-full bg-[#1e1e1e] border border-[#2e2e2e] text-[#777] text-xs font-medium
-            hover:border-accent/40 hover:text-accent transition-colors active:scale-95"
-        >
-          Feedback
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationsBell />
+          <button
+            onClick={() => setShowFeedback(true)}
+            className="h-8 px-3 rounded-full bg-[#1e1e1e] border border-[#2e2e2e] text-[#777] text-xs font-medium
+              hover:border-accent/40 hover:text-accent transition-colors active:scale-95"
+          >
+            Feedback
+          </button>
+        </div>
       </header>
 
       {/* Page content */}

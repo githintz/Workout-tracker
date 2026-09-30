@@ -191,3 +191,6 @@ create policy "hiit_shared_read" on hiit_sets
 
 -- Migration: run if table already exists
 -- alter table user_settings add column if not exists weekly_target int default 4;
+
+-- ─── PLAN SHARING + NOTIFICATIONS ─────────────────────────────────────────────
+-- Run supabase/migrations/2026-09-30_plan_sharing_notifications.sql after this file.
